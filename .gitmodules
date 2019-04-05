@@ -1,0 +1,3 @@
+[submodule "tinyrpc"]
+	path = tinyrpc
+	url = https://github.com/omegacoleman/tinyrpc
