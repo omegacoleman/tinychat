@@ -75,10 +75,13 @@ public:
             reply.set_token(token);
         } catch(chatroom::UserNotFoundException e) {
             reply.set_state(chat::LoginReply::not_registered);
+            std::cerr << e.what() << std::endl;
         } catch(chatroom::AuthenticateFailedException e) {
             reply.set_state(chat::LoginReply::auth_failed);
+            std::cerr << e.what() << std::endl;
         } catch(chatroom::DuplicateLoginException e) {
             reply.set_state(chat::LoginReply::duplicate_login);
+            std::cerr << e.what() << std::endl;
         } catch(std::exception e) {
             reply.set_state(chat::LoginReply::error);
             std::cerr << e.what() << std::endl;

@@ -11,24 +11,34 @@
 
 namespace chatroom
 {
-	template<const char* info> class ChatException : public std::exception
+	#define CHAT_EXCEPTION_STRING(info) (("error in chatroom.hpp : " info))
+	class ChatException : public std::exception
 	{
 	public:
 		virtual const char* what() const noexcept
 		{
-			return (std::string("error in chatroom.hpp : ") + info).c_str();
+			return CHAT_EXCEPTION_STRING("unknown");
 		}
 	};
+
+	#define CHAT_EXCEPTION_CLASS(classname, info) class classname : public ChatException \
+	{ \
+	public: \
+		virtual const char* what() const noexcept \
+		{ \
+			return CHAT_EXCEPTION_STRING(info); \
+		} \
+	}
 
 	template<typename session_type> class Person
 	{
 	public:
-		Person(const std::string name, const std::string auth)
+		Person(const std::string &name, const std::string &auth)
 		:name(name), auth(auth), login_info({})
 		{
 		}
 		
-		bool authenticate(const std::string name, const std::string auth) const
+		bool authenticate(const std::string &name, const std::string &auth) const
 		{
 			return (this->name == name) && (this->auth == auth);
 		}
@@ -49,7 +59,7 @@ namespace chatroom
 			boost::uuids::uuid token_uuid;
 			session_type& session;
 
-			bool verify(const std::string token, const session_type& session) const
+			bool verify(const std::string &token, const session_type& session) const
 			{
 				return (this->token == token) && 
 				(std::addressof(this->session) == std::addressof(session));
@@ -60,14 +70,9 @@ namespace chatroom
 		std::optional<LoginInfo> login_info;
 	};
 
-
-	const char duplicate_login_err_msg[] = "duplicate login";
-	const char authentication_failed_err_msg[] = "authenticate failed";
-	const char user_not_found_err_msg[] = "user not found";
-
-	using UserNotFoundException = ChatException<user_not_found_err_msg>;
-	using AuthenticateFailedException = ChatException<authentication_failed_err_msg>;
-	using DuplicateLoginException = ChatException<duplicate_login_err_msg>;
+	CHAT_EXCEPTION_CLASS(UserNotFoundException, "user not found");
+	CHAT_EXCEPTION_CLASS(AuthenticateFailedException, "authenticate failed");
+	CHAT_EXCEPTION_CLASS(DuplicateLoginException, "duplicate login");
 
 	template<typename session_type> class Room
 	{
@@ -85,7 +90,7 @@ namespace chatroom
 			return room;
 		}
 
-		std::string login(const std::string name, const std::string auth, session_type &session)
+		std::string login(const std::string &name, const std::string &auth, session_type &session)
 		{
 			if(members.count(name) == 0)
 			{
@@ -103,7 +108,7 @@ namespace chatroom
 			return members.at(name).login_info->token;
 		}
 
-		bool verify(const std::string name, const std::string token, session_type &session)
+		bool verify(const std::string &name, const std::string &token, session_type &session)
 		{
 			if(members.count(name) == 0)
 			{
