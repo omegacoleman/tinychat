@@ -30,27 +30,75 @@ namespace chatroom
 		} \
 	}
 
-	template<typename session_type> class Person
+	class Message : public std::enable_shared_from_this<Message>
+	{
+	public:
+		Message(const std::string &sender, const std::string &text, uint64_t unix_time = 0)
+		: sender(sender), text(text),
+		unix_time(unix_time ? unix_time : std::time(NULL)),
+		id_uuid(boost::uuids::random_generator()()),
+		id()
+		{
+			this->id = boost::uuids::to_string(this->id_uuid);
+		}
+
+		bool operator==(const Message &&m) const &&
+		{
+			return (this->id_uuid == m.id_uuid);
+		}
+
+		bool operator!=(const Message &&m) const &&
+		{
+			return (this->id_uuid != m.id_uuid);
+		}
+
+		std::string sender;
+		std::string text;
+		uint64_t unix_time;
+		boost::uuids::uuid id_uuid;
+		std::string id;
+	};
+
+	template <typename session_type> class SessionDeliverer
+	{
+		public:
+		void operator() (session_type &session, std::shared_ptr<chatroom::Message> message) {
+			session.deliver(message);
+		}
+	};
+
+	template<typename session_type, typename session_deliverer = SessionDeliverer<session_type> > class Person
 	{
 	public:
 		Person(const std::string &name, const std::string &auth)
 		:name(name), auth(auth), login_info({})
 		{
 		}
-		
+
 		bool authenticate(const std::string &name, const std::string &auth) const
 		{
 			return (this->name == name) && (this->auth == auth);
+		}
+
+		bool deliver_message(std::shared_ptr<chatroom::Message> message)
+		{
+			if(! this->login_info.has_value())
+			{
+				return false;
+			}
+			session_deliverer()(this->login_info->session, message);
+			return true;
 		}
 
 		class LoginInfo
 		{
 		public:
 			LoginInfo(std::string name, session_type& session, uint64_t unix_time=0)
-			:login_unix_time(unix_time || std::time(NULL)), 
-			token_uuid(boost::uuids::random_generator()()), 
-			token(), 
-			session(session)
+			:login_unix_time(unix_time ? unix_time : std::time(NULL)),
+			token_uuid(boost::uuids::random_generator()()),
+			token(),
+			session(session),
+			error_clear(true)
 			{
 				this->token = boost::uuids::to_string(this->token_uuid);
 			}
@@ -58,10 +106,11 @@ namespace chatroom
 			std::string token;
 			boost::uuids::uuid token_uuid;
 			session_type& session;
+			bool error_clear;
 
 			bool verify(const std::string &token, const session_type& session) const
 			{
-				return (this->token == token) && 
+				return (this->token == token) &&
 				(std::addressof(this->session) == std::addressof(session));
 			}
 		};
@@ -116,6 +165,23 @@ namespace chatroom
 			}
 			return members.at(name).login_info.has_value() &&
 			(members.at(name).login_info->verify(token, session));
+		}
+
+		void send_message(const Message &message)
+		{
+			auto shared_message = std::make_shared<Message>(Message(message));
+			for(auto it = members.begin(); it != members.end(); ++it)
+			{
+				try
+				{
+					it->second.deliver_message(shared_message);
+				} catch (const std::exception &e)
+				{
+					std::cerr << "error occured while delivering message " << message.id << " to " << it->first << " : " << std::endl;
+					std::cerr << e.what() << std::endl;
+					it->second.login_info->error_clear = false;
+				}
+			}
 		}
 
 		std::map<std::string, Person<session_type> > members;

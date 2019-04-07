@@ -24,9 +24,23 @@ namespace websocket = boost::beast::websocket;  // from <boost/beast/websocket.h
 
 using ws = websocket::stream<tcp::socket>;
 
+boost::asio::io_context ioc;
+
 class rpc_session;
 
 std::unique_ptr<chatroom::Room<rpc_session> > room;
+
+class VendorBoostSystemException : public std::exception
+{
+public:
+    VendorBoostSystemException(boost::system::error_code &ec)
+    :ec(ec) {}
+	virtual const char* what() const noexcept
+	{
+		return ec.message().c_str();
+	}
+    boost::system::error_code &ec;
+};
 
 class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
@@ -48,6 +62,9 @@ public:
                 std::placeholders::_1, std::placeholders::_2));
         rpc_stub_.rpc_bind<chat::VerifyRequest, chat::VerifyReply>(
             std::bind(&rpc_session::verify_service, this,
+                std::placeholders::_1, std::placeholders::_2));
+        rpc_stub_.rpc_bind<chat::ChatSendRequest, chat::ChatSendReply>(
+            std::bind(&rpc_session::chat_send_service, this,
                 std::placeholders::_1, std::placeholders::_2));
 
 		boost::beast::multi_buffer buf;
@@ -73,16 +90,17 @@ public:
             std::string token = room->login(req.name(), req.auth(), *this);
             reply.set_state(chat::LoginReply::ok);
             reply.set_token(token);
-        } catch(chatroom::UserNotFoundException e) {
+			std::cout << req.name() << " logged in " << std::endl;
+        } catch(const chatroom::UserNotFoundException &e) {
             reply.set_state(chat::LoginReply::not_registered);
             std::cerr << e.what() << std::endl;
-        } catch(chatroom::AuthenticateFailedException e) {
+        } catch(const chatroom::AuthenticateFailedException &e) {
             reply.set_state(chat::LoginReply::auth_failed);
             std::cerr << e.what() << std::endl;
-        } catch(chatroom::DuplicateLoginException e) {
+        } catch(const chatroom::DuplicateLoginException &e) {
             reply.set_state(chat::LoginReply::duplicate_login);
             std::cerr << e.what() << std::endl;
-        } catch(std::exception e) {
+        } catch(const std::exception &e) {
             reply.set_state(chat::LoginReply::error);
             std::cerr << e.what() << std::endl;
         }
@@ -98,6 +116,54 @@ public:
             reply.set_ok(false);
             std::cerr << e.what() << std::endl;
         }
+    }
+
+	void chat_send_service(const chat::ChatSendRequest &req, chat::ChatSendReply &reply)
+	{
+		if(!room->verify(req.name(), req.token(), *this))
+		{
+			std::cerr << "name " << req.name() << " tried to send something but fails the token valification" << std::endl;
+			reply.set_result(chat::ChatSendReply::error);
+			return;
+		}
+		try
+		{
+			chatroom::Message m(req.name(), req.text());
+			room->send_message(m);
+			std::cout << "|| " << req.name() << " : " << req.text() << std::endl;
+		} catch(const std::exception &e) {
+			std::cerr << e.what() << std::endl;
+			reply.set_result(chat::ChatSendReply::error);
+			return;
+		}
+	}
+
+    void deliver_proc(std::shared_ptr<chatroom::Message> message, boost::asio::yield_context yield)
+    {
+        boost::system::error_code ec;
+        chat::NotifyChatMessageRequest req;
+        chat::ChatMessage *chat_message = new chat::ChatMessage();
+        chat_message->set_id(message->id);
+        chat_message->set_sender(message->sender);
+        chat_message->set_unix_time(message->unix_time);
+        chat_message->set_text(message->text);
+        req.set_allocated_chat_message(chat_message);
+        chat::NotifyChatMessageReply reply;
+        this->rpc_stub_.async_call(req, reply, yield[ec]);
+        if(ec)
+        {
+            throw VendorBoostSystemException(ec);
+        }
+    }
+
+    void deliver(std::shared_ptr<chatroom::Message> message)
+    {
+        boost::asio::spawn(ioc,
+            std::bind(
+                &rpc_session::deliver_proc,
+                this, 
+                message,
+                std::placeholders::_1));
     }
 
 private:
@@ -128,7 +194,6 @@ void do_session(tcp::socket& socket, boost::asio::yield_context yield)
 }
 
 void do_listen(
-    boost::asio::io_context& ioc,
     tcp::endpoint endpoint,
     boost::asio::yield_context yield)
 {
@@ -159,7 +224,7 @@ void do_listen(
             fail(ec, "accept");
         else
             boost::asio::spawn(
-                acceptor.get_executor().context(),
+                ioc,
                 std::bind(
                     &do_session,
                     std::move(socket),
@@ -181,12 +246,9 @@ int main(int argc, char* argv[])
     auto const address = boost::asio::ip::make_address(argv[1]);
     auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
 
-    boost::asio::io_context ioc;
-
     boost::asio::spawn(ioc,
         std::bind(
             &do_listen,
-            std::ref(ioc),
             tcp::endpoint{address, port},
             std::placeholders::_1));
 

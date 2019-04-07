@@ -1,8 +1,7 @@
 ﻿#include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
-#include <boost/asio/connect.hpp>
+#include <boost/asio.hpp>
 #include <boost/asio/spawn.hpp>
-#include <boost/asio/ip/tcp.hpp>
 
 #include <cstdlib>
 #include <functional>
@@ -49,8 +48,19 @@ public:
 		}
 	}
 
-	void chat_proc(boost::asio::yield_context yield)
+	void notify_chat_message_service(const chat::NotifyChatMessageRequest &req, chat::NotifyChatMessageReply &reply)
 	{
+		std::cout << "|| " << req.chat_message().sender() << " : " << req.chat_message().text() << std::endl;
+	}
+
+	void chat_proc(boost::asio::yield_context yield, boost::asio::io_context& ioc)
+	{
+        rpc_stub_.rpc_bind<chat::NotifyChatMessageRequest, chat::NotifyChatMessageReply>(
+            std::bind(&rpc_session::notify_chat_message_service, this,
+                std::placeholders::_1, std::placeholders::_2));
+
+		boost::asio::posix::stream_descriptor asio_stdin(ioc, ::dup(STDIN_FILENO));
+
 		boost::system::error_code ec;
 
 		chat::LoginRequest msg;
@@ -98,31 +108,56 @@ public:
 
 		std::string token = reply.token();
 		std::cout << "your token : " << token << std::endl;
+		std::cout << "type sth to speak, or press enter to send a heartbeat" << std::endl;
+		std::cout << "------------------" << std::endl;
 
 		while (true)
 		{
-			std::cout << "press enter to send a heartbeat" << std::endl;
 
+			boost::asio::streambuf b;
+			boost::asio::async_read_until(asio_stdin, b, '\n', yield[ec]);
+			std::istream is(&b);
 			std::string context;
-			context.clear();
-			std::getline(std::cin, context);
+			std::getline(is, context, '\n');
+			// std::getline(std::cin, context);
 
-			chat::VerifyRequest v_req;
-			chat::VerifyReply v_reply;
-			v_req.set_name(name);
-			v_req.set_token(token);
-			rpc_stub_.async_call(v_req, v_reply, yield[ec]);
-			if (ec)
+			if(context == "")
 			{
-				std::cout << "error: " << ec.message() << std::endl;
-				return;
-			}
-			if(v_reply.ok())
-			{
-				std::cout << "yaay! still online." << std::endl;
+				chat::VerifyRequest v_req;
+				chat::VerifyReply v_reply;
+				v_req.set_name(name);
+				v_req.set_token(token);
+				rpc_stub_.async_call(v_req, v_reply, yield[ec]);
+				if (ec)
+				{
+					std::cout << "error: " << ec.message() << std::endl;
+					return;
+				}
+				if(v_reply.ok())
+				{
+					std::cout << "you are connected to the server." << std::endl;
+				} else {
+					std::cout << "connection interrupted." << std::endl;
+					return;
+				}
 			} else {
-				std::cout << "connection interrupted." << std::endl;
-				return;
+				chat::ChatSendRequest v_req;
+				chat::ChatSendReply v_reply;
+				v_req.set_name(name);
+				v_req.set_token(token);
+				v_req.set_text(context);
+				rpc_stub_.async_call(v_req, v_reply, yield[ec]);
+				if (ec)
+				{
+					std::cerr << "error: " << ec.message() << std::endl;
+					return;
+				}
+				if(v_reply.result() == chat::ChatSendReply::ok)
+				{
+					std::cout << "message sent" << std::endl;
+				} else {
+					std::cout << "message failed to send" << std::endl;
+				}
 			}
 		}
 	}
@@ -166,7 +201,7 @@ void do_session(
 	auto ses = std::make_shared<rpc_session>(std::move(s));
 	boost::asio::spawn(ioc,
 		std::bind(&rpc_session::run, ses, std::placeholders::_1));
-	ses->chat_proc(yield);
+	ses->chat_proc(yield, ioc);
 }
 
 int main(int argc, char** argv)

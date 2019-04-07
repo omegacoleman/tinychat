@@ -22,7 +22,7 @@ message LoginReply {
 message ChatSendRequest {
 	string name = 1;
 	bytes token = 2;
-	string message = 3;
+	string text = 3;
 }
 
 message ChatSendReply {
@@ -36,8 +36,8 @@ message ChatSendReply {
 
 message ChatMessage {
 	bytes id = 1;
-	string author = 2;
-	string message = 3;
+	string sender = 2;
+	string text = 3;
 	uint64 unix_time = 4;
 }
 
