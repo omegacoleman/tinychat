@@ -28,7 +28,20 @@ boost::asio::io_context ioc;
 
 class rpc_session;
 
+void dummy_db_checkin(chatroom::LogIterator start, chatroom::LogIterator end, std::function<void ()> callback)
+{
+	std::cout << "Pretending to checkin these to db : " << std::endl;
+	std::cout << "-----------------------------------" << std::endl;
+	for(; start != end; ++start)
+	{
+		std::cout << start->sender << " : " << start->text << std::endl;
+	}
+	std::cout << "-----------------------------------" << std::endl;
+	callback();
+}
+
 std::unique_ptr<chatroom::Room<rpc_session> > room;
+std::unique_ptr<chatroom::ChatLog<> > chatlog;
 
 class VendorBoostSystemException : public std::exception
 {
@@ -129,7 +142,7 @@ public:
 		try
 		{
 			chatroom::Message m(req.name(), req.text());
-			room->send_message(m);
+			room->send_and_log_message(m, *chatlog);
 			std::cout << "|| " << req.name() << " : " << req.text() << std::endl;
 		} catch(const std::exception &e) {
 			std::cerr << e.what() << std::endl;
@@ -235,6 +248,10 @@ void do_listen(
 int main(int argc, char* argv[])
 {
 	room = chatroom::Room<rpc_session>::load_room();
+	chatlog = std::make_unique<chatroom::ChatLog<> >(30, 10, 14);
+	std::function f{dummy_db_checkin};
+	chatlog->auto_checkin(f);
+
 	if (argc != 3)
 	{
 		std::cerr <<

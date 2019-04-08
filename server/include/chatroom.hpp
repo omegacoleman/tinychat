@@ -4,6 +4,15 @@
 #include <ctime>
 #include <utility>
 #include <memory>
+#include <deque>
+#include <algorithm>
+#include <cstdlib>
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <thread>
+#include <vector>
 
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
@@ -57,6 +66,145 @@ namespace chatroom
 		uint64_t unix_time;
 		boost::uuids::uuid id_uuid;
 		std::string id;
+	};
+
+	CHAT_EXCEPTION_CLASS(CheckInTooMuchException, "ChatLog : checkin() more log than could");
+	CHAT_EXCEPTION_CLASS(ReleaseTooMuchException, "ChatLog : release() more log than could");
+
+
+	CHAT_EXCEPTION_CLASS(SizeUndesiredException, 
+		"ChatLog : checkin_bundle_size shall be under size_limit, and "
+		"log_revise_size shall be under floor(size_limit / 2)");
+
+
+	using LogIterator = std::deque<Message>::iterator;
+
+	template <typename checkin_range_callable = 
+	std::function<void (LogIterator, LogIterator, std::function<void ()> ) > >
+	class ChatLog
+	{
+	public:
+		ChatLog(size_t size_limit, size_t checkin_bundle_size, 
+			size_t log_revise_size)
+		: size_limit(size_limit),
+		checkin_bundle_size(checkin_bundle_size), 
+		log_revise_size(log_revise_size), 
+		logs(),
+		checkin_i(0) {
+			if(checkin_bundle_size >= size_limit)
+			{
+				throw SizeUndesiredException();
+			}
+			if(log_revise_size >= (size_limit / 2))
+			{
+				throw SizeUndesiredException();
+			}
+		}
+
+		template <typename message_iterator>
+		void load_from_db(message_iterator it, message_iterator end)
+		{
+			const size_t to_load_max = this->size_limit / 2;
+			for(; it != end; ++it)
+			{
+				this->logs.push_front(*it);
+				this->checkin_i++;
+				if(this->logs.size() >= to_load_max)
+				{
+					return;
+				}
+			}
+		}
+
+		void checkin_all(checkin_range_callable &callable)
+		{
+			this->checkin(this->not_checked_in_n(), std::forward(callable));
+		}
+
+		void checkin(size_t amount, checkin_range_callable &callable)
+		{
+			std::cout << "ChatLog : attempt to checkin " << amount << " logs..." << std::endl;
+			if (amount > this->not_checked_in_n()) {
+				throw CheckInTooMuchException();
+			}
+			callable(this->checkin_it(), (this->checkin_it() + amount), std::bind(
+				&ChatLog::checkin_done, 
+				this, 
+				amount
+				));
+		}
+
+		void checkin_done(size_t amount)
+		{
+			std::cout << "ChatLog : report done checkin " << amount << " to db." << std::endl;
+			if (amount > this->not_checked_in_n()) {
+				throw CheckInTooMuchException();
+			}
+			this->checkin_i += amount;
+			if(this->logs.size() >= this->size_limit)
+			{
+				this->release(this->checkin_i / 2);
+			}
+		}
+
+		void auto_checkin(checkin_range_callable &handler)
+		{
+			this->checkin_handler.emplace(handler);
+		}
+
+		void add(const Message &message)
+		{
+			this->logs.push_back(message);
+			if(this->checkin_handler.has_value())
+			{
+				if(this->not_checked_in_n() >= this->checkin_bundle_size)
+				{
+					this->checkin(this->checkin_bundle_size, *(this->checkin_handler));
+				} else if(this->logs.size() >= this->size_limit)
+				{
+					this->release(this->checkin_i / 2);
+				}
+			}
+		}
+
+		void release(size_t amount)
+		{
+			std::cout << "ChatLog : released " << amount << std::endl;
+			if(amount > this->checkin_i)
+			{
+				throw ReleaseTooMuchException();
+			}
+			this->logs.erase(this->logs.begin(), this->logs.begin() + amount);
+			this->checkin_i -= amount;
+		}
+
+		LogIterator checkin_it()
+		{
+			return (this->logs.begin() + this->checkin_i);
+		}
+
+		size_t not_checked_in_n()
+		{
+			return (this->logs.size() - this->checkin_i);
+		}
+
+		std::pair<LogIterator, LogIterator> log_revise()
+		{
+			if(this->logs.size() <= this->log_revise_size)
+			{
+				return std::make_pair(this->logs.begin(), this->logs.end());
+			}
+			return std::make_pair(
+				this->logs.end() - this->log_revise_size, 
+				this->logs.end());
+		}
+
+		std::optional<checkin_range_callable> checkin_handler;
+		size_t size_limit;
+		size_t checkin_bundle_size;
+		std::deque<Message> logs;
+		size_t checkin_i;
+		size_t log_revise_size;
 	};
 
 	template <typename session_type> class SessionDeliverer
@@ -182,6 +330,13 @@ namespace chatroom
 					it->second.login_info->error_clear = false;
 				}
 			}
+		}
+
+		template <typename HookedChatLog>
+		void send_and_log_message(const Message &message, HookedChatLog &chatlog)
+		{
+			this->send_message(message);
+			chatlog.add(message);
 		}
 
 		std::map<std::string, Person<session_type> > members;
