@@ -13,8 +13,7 @@
 #include "tinyrpc/rpc_websocket_service.hpp"
 using namespace tinyrpc;
 
-
-using tcp = boost::asio::ip::tcp;               // from <boost/asio/ip/tcp.hpp>
+using tcp = boost::asio::ip::tcp;			   // from <boost/asio/ip/tcp.hpp>
 namespace websocket = boost::beast::websocket;  // from <boost/beast/websocket.hpp>
 
 using ws = websocket::stream<tcp::socket>;
@@ -55,9 +54,9 @@ public:
 
 	void chat_proc(boost::asio::yield_context yield, boost::asio::io_context& ioc)
 	{
-        rpc_stub_.rpc_bind<chat::NotifyChatMessageRequest, chat::NotifyChatMessageReply>(
-            std::bind(&rpc_session::notify_chat_message_service, this,
-                std::placeholders::_1, std::placeholders::_2));
+		rpc_stub_.rpc_bind<chat::NotifyChatMessageRequest, chat::NotifyChatMessageReply>(
+			std::bind(&rpc_session::notify_chat_message_service, this,
+				std::placeholders::_1, std::placeholders::_2));
 
 		boost::asio::posix::stream_descriptor asio_stdin(ioc, ::dup(STDIN_FILENO));
 
@@ -211,7 +210,7 @@ int main(int argc, char** argv)
 		std::cerr <<
 			"Usage: websocket-client <host> <port>\n" <<
 			"Example:\n" <<
-			"    websocket-client 127.0.0.1 8000\n";
+			"	websocket-client 127.0.0.1 8000\n";
 		return EXIT_FAILURE;
 	}
 
