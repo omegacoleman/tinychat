@@ -274,3 +274,8 @@ doc/name
 doc/package-lock.json
 doc/package.json
 .DS_Store
+
+# clion
+.idea*
+cmake-build*
+
