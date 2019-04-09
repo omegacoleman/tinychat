@@ -6,4 +6,4 @@ file(GLOB websocket_client_SRCS
 	websocket_client.cpp
 )
 
-add_executable(websocket-client ${websocket_client_SRCS} ${PROTO_RPC_TEST_SRC} ${PROTO_RPC_TEST_HDRS})
+add_executable(websocket-client ${websocket_client_SRCS} ${PROTO_RPC_TEST_SRC} ${PROTO_RPC_TEST_HDRS} )
