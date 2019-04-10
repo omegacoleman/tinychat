@@ -85,6 +85,8 @@ namespace chatroom
 	class ChatLog
 	{
 	public:
+		using CheckinFunction = checkin_range_callable;
+
 		ChatLog(size_t size_limit, size_t checkin_bundle_size, 
 			size_t log_revise_size)
 		: size_limit(size_limit),

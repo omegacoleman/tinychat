@@ -15,6 +15,8 @@
 
 #include "chatroom.hpp"
 
+#include "db/bredis.hpp"
+
 #include "tinyrpc/rpc_websocket_service.hpp"
 using namespace tinyrpc;
 
@@ -249,19 +251,25 @@ int main(int argc, char* argv[])
 {
 	room = chatroom::Room<rpc_session>::load_room();
 	chatlog = std::make_unique<chatroom::ChatLog<> >(30, 10, 14);
-	std::function f{dummy_db_checkin};
-	chatlog->auto_checkin(f);
 
-	if (argc != 3)
+	// TODO : switch to boost::program_option
+	if (argc != 5)
 	{
 		std::cerr <<
-		"Usage: websocket-server <address> <port>\n" <<
+		"Usage: websocket-server <address> <port> <redis_host> <redis_port>\n" <<
 		"Example:\n" <<
-		"   websocket-server 0.0.0.0 8000\n";
+		"   websocket-server 0.0.0.0 8000 127.0.0.1 6379\n";
 		return EXIT_FAILURE;
 	}
 	auto const address = boost::asio::ip::make_address(argv[1]);
 	auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
+
+	const std::string redis_host(argv[3]);
+	auto const redis_port = static_cast<unsigned short>(std::atoi(argv[4]));
+
+	chatroom::db::via_bredis::connection db_conn(ioc, redis_host, redis_port);
+	chatroom::ChatLog<>::CheckinFunction f = std::bind(&chatroom::db::via_bredis::connection::checkin_log, &db_conn, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+	chatlog->auto_checkin(f);
 
 	boost::asio::spawn(ioc,
 		std::bind(
