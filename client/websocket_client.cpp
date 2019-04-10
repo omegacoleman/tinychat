@@ -8,7 +8,7 @@
 #include <functional>
 #include <iostream>
 #include <string>
-
+#include <async_stdio.hpp>
 #include "chat.pb.h"
 
 #include "tinyrpc/rpc_websocket_service.hpp"
@@ -20,47 +20,16 @@ namespace websocket = boost::beast::websocket;  // from <boost/beast/websocket.h
 
 using ws = websocket::stream<tcp::socket>;
 
-namespace util
-{
-	using Result = boost::asio::async_result<boost::asio::yield_context, void(
-			std::string)>;
-	using Handler = Result::completion_handler_type;
-	using Return = Result::return_type;
-
-	Return async_stdin_read_some(
-			boost::asio::io_context &post_context,
-			boost::asio::yield_context yield)
-	{
-		Handler handler(yield);
-		Result result(handler);
-		boost::thread thread(
-				[&post_context, handler]() mutable
-				{
-				std::string context;
-				std::getline(std::cin, context);
-				boost::asio::post(
-						post_context,
-						[handler, context]() mutable
-						{
-						handler(context);
-						});
-				});
-		thread.detach();
-		return result.get();
-	}
-}
-
 class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
 	public:
 		rpc_session(ws &&s)
-			: ws_(std::move(s)), rpc_stub_(ws_)
+			: ws_(std::move(s)),
+				rpc_stub_(ws_)
 		{}
 
-		~rpc_session()
-		{
-		}
-
+		~rpc_session() = default;
+		
 		void run(boost::asio::yield_context yield)
 		{
 			boost::beast::multi_buffer buf;
@@ -84,6 +53,45 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 			std::cout << "|| " << req.chat_message().sender() << " : "
 				<< req.chat_message().text() << std::endl;
 		}
+		
+		void start_timed_heartbeat(
+			boost::asio::io_context &ioc,
+			const std::string &name,
+			const std::string &token,
+			std::chrono::duration<std::size_t> duration
+			)
+		{
+			spawn(ioc,
+				[duration,name,token,&ioc,this](boost::asio::yield_context yield)
+				{
+					boost::asio::steady_timer timer(ioc);
+					chat::VerifyRequest v_req;
+					v_req.set_name(name);
+					v_req.set_token(token);
+					boost::system::error_code ec;
+					boost::beast::websocket::close_reason reason;
+					try
+					{
+						while(true)
+						{
+							timer.expires_after(duration);
+							timer.async_wait(yield);
+							chat::VerifyReply v_reply;
+							rpc_stub_.async_call(v_req, v_reply, yield);
+							if (!v_reply.ok())
+							{
+								reason.reason = "connection interrupted.";
+								break;
+							}
+						}
+					}
+					catch (boost::system::system_error &error)
+					{
+						reason.reason = std::string("System error: ")+error.what();
+					}
+					ws_.close(reason);
+				});
+		}
 
 		void chat_proc(boost::asio::yield_context yield, boost::asio::io_context &ioc)
 		{
@@ -91,9 +99,6 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 					std::bind(&rpc_session::notify_chat_message_service, this,
 						std::placeholders::_1, std::placeholders::_2));
 
-#ifdef TINYCHAT_UNIX
-			boost::asio::posix::stream_descriptor asio_stdin(ioc, ::dup(STDIN_FILENO));
-#endif
 
 			boost::system::error_code ec;
 
@@ -139,45 +144,16 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 				return;
 			}
 
-			std::cout << "login succesful. " << std::endl;
-
+			std::cout << "login succeed." << std::endl;
 			std::string token = reply.token();
+			start_timed_heartbeat(ioc,name,token,std::chrono::seconds(1));
 			std::cout << "your token : " << token << std::endl;
-			std::cout << "type sth to speak, or press enter to send a heartbeat"
-				<< std::endl;
+			std::cout << "type to speak" << std::endl;
 			std::cout << "------------------" << std::endl;
 
 			while ( true )
 			{
-				std::string context;
-#if defined(TINYCHAT_UNIX)
-				boost::asio::async_read_until(asio_stdin,dynamic_buffer(context),'\n',yield[ec]);
-#elif defined(TINYCHAT_WIN)
-				context = util::async_stdin_read_some(rpc_stub_.websocket().get_executor().context(),yield);
-#endif
-				if ( context == "" )
-				{
-					chat::VerifyRequest v_req;
-					chat::VerifyReply v_reply;
-					v_req.set_name(name);
-					v_req.set_token(token);
-					rpc_stub_.async_call(v_req, v_reply, yield[ec]);
-					if ( ec )
-					{
-						std::cout << "error: " << ec.message() << std::endl;
-						return;
-					}
-					if ( v_reply.ok())
-					{
-						std::cout << "you are connected to the server." << std::endl;
-					}
-					else
-					{
-						std::cout << "connection interrupted." << std::endl;
-						return;
-					}
-				}
-				else
+				auto context = tinychat::utility::async_stdin_getline(ioc,yield[ec]);
 				{
 					chat::ChatSendRequest v_req;
 					chat::ChatSendReply v_reply;
