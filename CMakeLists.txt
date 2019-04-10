@@ -24,6 +24,10 @@ else()
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/utility)
+if(MSVC)
+	set(WIN32_EXTRA_LIBRARIES ${WIN32_EXTRA_LIBRARIES} bcrypt)
+endif()
+
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${PROTOBUF_INCLUDE_DIRS})
 
@@ -32,21 +36,6 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}" "${PROJECT_SO
 add_definitions(-DBOOST_COROUTINES_NO_DEPRECATION_WARNING)
 
 if (MSVC)
-	set(CompilerFlags
-			CMAKE_CXX_FLAGS_DEBUG
-			CMAKE_CXX_FLAGS_RELEASE
-			CMAKE_CXX_FLAGS_MINSIZEREL
-			CMAKE_CXX_FLAGS_RELWITHDEBINFO
-			CMAKE_C_FLAGS_DEBUG
-			CMAKE_C_FLAGS_RELEASE
-			CMAKE_C_FLAGS_MINSIZEREL
-			CMAKE_C_FLAGS_RELWITHDEBINFO
-		)
-
-	foreach(CompilerFlag ${CompilerFlags})
-		string(REPLACE "/MD" "/MT" ${CompilerFlag} "${${CompilerFlag}}")
-	endforeach()
-
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 	add_definitions(-D_SCL_SECURE_NO_WARNINGS)
 	add_definitions(-D_WIN32_WINNT=0x0601)
@@ -54,15 +43,7 @@ if (MSVC)
 	add_definitions(-DWIN32_LEAN_AND_MEAN)
 	add_definitions(-DNOMINMAX)
 	add_definitions(-D_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS)
-
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP /bigobj")
-
-	if (MSVC_VERSION GREATER_EQUAL "1900")
-		CHECK_CXX_COMPILER_FLAG("/std:c++latest" HAS_CPP_LATEST_FLAG)
-		if (HAS_CPP_LATEST_FLAG)
-			add_compile_options("/std:c++latest")
-		endif()
-	endif()
 endif()
 
 CHECK_CXX_COMPILER_FLAG(-fvisibility-inlines-hidden COMPILER_HAS_VISIBILITY_INLINE_HIDDEN)
@@ -100,6 +81,11 @@ if (NOT MSVC)
 		message(FATAL_ERROR "need at least GCC 5 or clang 5")
 	endif()
 endif(NOT MSVC)
+
+if (MSVC)
+	set(CMAKE_CXX_STANDARD 17)
+	set(CMAKE_CXX_STANDARD_REQUIRED 17)
+endif()
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)

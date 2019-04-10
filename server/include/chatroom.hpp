@@ -13,6 +13,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <optional>
 
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
