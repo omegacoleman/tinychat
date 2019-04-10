@@ -23,6 +23,7 @@ else()
 	message(FATAL "unsupported platform")
 endif()
 
+include_directories(${PROJECT_SOURCE_DIR}/utility)
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${PROTOBUF_INCLUDE_DIRS})
 

@@ -8,7 +8,7 @@
 #include <functional>
 #include <iostream>
 #include <string>
-
+#include <async_stdio.hpp>
 #include "chat.pb.h"
 
 #include "tinyrpc/rpc_websocket_service.hpp"
@@ -19,36 +19,6 @@ using tcp = boost::asio::ip::tcp;         // from <boost/asio/ip/tcp.hpp>
 namespace websocket = boost::beast::websocket;  // from <boost/beast/websocket.hpp>
 
 using ws = websocket::stream<tcp::socket>;
-
-namespace util
-{
-	using Result = boost::asio::async_result<boost::asio::yield_context, void(
-			std::string)>;
-	using Handler = Result::completion_handler_type;
-	using Return = Result::return_type;
-
-	Return async_stdin_read_some(
-			boost::asio::io_context &post_context,
-			boost::asio::yield_context yield)
-	{
-		Handler handler(yield);
-		Result result(handler);
-		boost::thread thread(
-				[&post_context, handler]() mutable
-				{
-				std::string context;
-				std::getline(std::cin, context);
-				boost::asio::post(
-						post_context,
-						[handler, context]() mutable
-						{
-						handler(context);
-						});
-				});
-		thread.detach();
-		return result.get();
-	}
-}
 
 class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
@@ -91,9 +61,6 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 					std::bind(&rpc_session::notify_chat_message_service, this,
 						std::placeholders::_1, std::placeholders::_2));
 
-#ifdef TINYCHAT_UNIX
-			boost::asio::posix::stream_descriptor asio_stdin(ioc, ::dup(STDIN_FILENO));
-#endif
 
 			boost::system::error_code ec;
 
@@ -149,12 +116,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 			while ( true )
 			{
-				std::string context;
-#if defined(TINYCHAT_UNIX)
-				boost::asio::async_read_until(asio_stdin,dynamic_buffer(context),'\n',yield[ec]);
-#elif defined(TINYCHAT_WIN)
-				context = util::async_stdin_read_some(rpc_stub_.websocket().get_executor().context(),yield);
-#endif
+				auto context = tinychat::utility::async_stdin_getline(ioc,yield[ec]);
 				if ( context == "" )
 				{
 					chat::VerifyRequest v_req;
