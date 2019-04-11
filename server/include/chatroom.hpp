@@ -281,12 +281,14 @@ namespace chatroom
 		:members()
 		{}
 
-		static std::unique_ptr<Room> load_room() // simulate loading from database
+		template <typename UserAuthPairIterator>
+		static std::unique_ptr<Room> load_room(UserAuthPairIterator it, UserAuthPairIterator end)
 		{
 			std::unique_ptr<Room> room = std::make_unique<Room>();
-			room->members.insert(std::make_pair("youcai", Person<session_type>("youcai", "66666")));
-			room->members.insert(std::make_pair("orange", Person<session_type>("orange", "77777")));
-			room->members.insert(std::make_pair("kim", Person<session_type>("kim", "88888")));
+			for (; it != end; ++it)
+			{
+				room->members.insert(std::make_pair(it->first, Person<session_type>(it->first, it->second)));
+			}
 			return room;
 		}
 

@@ -15,7 +15,7 @@
 
 #include "chatroom.hpp"
 
-#include "db/bredis.hpp"
+#include "db/bredis_client.hpp"
 
 #include "tinyrpc/rpc_websocket_service.hpp"
 using namespace tinyrpc;
@@ -249,7 +249,6 @@ void do_listen(
 
 int main(int argc, char* argv[])
 {
-	room = chatroom::Room<rpc_session>::load_room();
 	chatlog = std::make_unique<chatroom::ChatLog<> >(30, 10, 14);
 
 	// TODO : switch to boost::program_option
@@ -270,6 +269,10 @@ int main(int argc, char* argv[])
 	chatroom::db::via_bredis::connection db_conn(ioc, redis_host, redis_port);
 	chatroom::ChatLog<>::CheckinFunction f = std::bind(&chatroom::db::via_bredis::connection::checkin_log, &db_conn, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
 	chatlog->auto_checkin(f);
+
+	db_conn.reload_users_sync();
+	auto &user_auth_it_pair = db_conn.users();
+	room = chatroom::Room<rpc_session>::load_room(user_auth_it_pair.first, user_auth_it_pair.second);
 
 	boost::asio::spawn(ioc,
 		std::bind(
