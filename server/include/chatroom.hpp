@@ -80,13 +80,10 @@ namespace chatroom
 
 	using LogIterator = std::deque<Message>::iterator;
 
-	template <typename checkin_range_callable = 
-	std::function<void (LogIterator, LogIterator, std::function<void ()> ) > >
+	using checkin_range_callable = std::function<void(LogIterator, LogIterator, std::function<void()>)>;
 	class ChatLog
 	{
 	public:
-		using CheckinFunction = checkin_range_callable;
-
 		ChatLog(size_t size_limit, size_t checkin_bundle_size, 
 			size_t log_revise_size)
 		: size_limit(size_limit),
@@ -119,12 +116,12 @@ namespace chatroom
 			}
 		}
 
-		void checkin_all(checkin_range_callable &callable)
+		void checkin_all(checkin_range_callable callable)
 		{
-			this->checkin(this->not_checked_in_n(), std::forward(callable));
+			this->checkin(this->not_checked_in_n(), callable);
 		}
 
-		void checkin(size_t amount, checkin_range_callable &callable)
+		void checkin(size_t amount, checkin_range_callable callable)
 		{
 			std::cout << "ChatLog : attempt to checkin " << amount << " logs..." << std::endl;
 			if (amount > this->not_checked_in_n()) {
@@ -150,7 +147,7 @@ namespace chatroom
 			}
 		}
 
-		void auto_checkin(checkin_range_callable &handler)
+		void auto_checkin(checkin_range_callable handler)
 		{
 			this->checkin_handler.emplace(handler);
 		}

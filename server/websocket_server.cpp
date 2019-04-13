@@ -45,7 +45,7 @@ void dummy_db_checkin(chatroom::LogIterator start, chatroom::LogIterator end, st
 }
 
 std::unique_ptr<chatroom::Room<rpc_session> > room;
-std::unique_ptr<chatroom::ChatLog<> > chatlog;
+std::unique_ptr<chatroom::ChatLog > chatlog;
 
 class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
@@ -233,7 +233,7 @@ void do_listen(
 
 int main(int argc, char* argv[])
 {
-	chatlog = std::make_unique<chatroom::ChatLog<> >(30, 10, 14);
+	chatlog = std::make_unique<chatroom::ChatLog>(30, 10, 14);
 
 	// TODO : switch to boost::program_option
 	if (argc != 5)
@@ -251,13 +251,12 @@ int main(int argc, char* argv[])
 	auto const redis_port = static_cast<unsigned short>(std::atoi(argv[4]));
 
 	chatroom::db::via_bredis::connection db_conn(ioc, redis_host, redis_port);
-	chatroom::ChatLog<>::CheckinFunction f = std::bind(
-		&chatroom::db::via_bredis::connection::checkin_log, 
-		&db_conn, 
-		std::placeholders::_1, 
-		std::placeholders::_2, 
-		std::placeholders::_3);
-	chatlog->auto_checkin(f);
+	chatlog->auto_checkin(std::bind(
+		&chatroom::db::via_bredis::connection::checkin_log,
+		&db_conn,
+		std::placeholders::_1,
+		std::placeholders::_2,
+		std::placeholders::_3));
 
 	db_conn.reload_users_sync();
 	auto &user_auth_it_pair = db_conn.users();
