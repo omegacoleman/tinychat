@@ -279,3 +279,6 @@ doc/package.json
 .idea*
 cmake-build*
 
+# visual studio cmake config
+CMakeSettings.json
+
