@@ -1,4 +1,5 @@
 A chatroom based on tinyrpc. 
 
-Just started off with login & heartbeat.
+Chat function mainly done. 
+Branch bredis is for working with redis as database.
 
