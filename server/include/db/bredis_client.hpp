@@ -16,6 +16,8 @@ namespace chatroom
 		namespace via_bredis
 		{
 			using result_iterator = typename bredis::to_iterator<boost::asio::streambuf>::iterator_t;
+			using user_update_handle = std::function<void(const std::string &, const std::string &) >;
+			using subscription_handler = std::function<void(boost::asio::yield_context yield)>;
 
 			class connection
 			{
@@ -27,8 +29,56 @@ namespace chatroom
 						boost::asio::ip::address::from_string(host), port);
 					this->s = std::make_unique<boost::asio::ip::tcp::socket>(ioc, end.protocol());
 					this->s->connect(end);
-
 					this->c = std::make_unique<bredis::Connection<boost::asio::ip::tcp::socket &> >(*this->s);
+
+					this->s_subscription = std::make_unique<boost::asio::ip::tcp::socket>(ioc, end.protocol());
+					this->s_subscription->connect(end);
+					this->c_subscription = std::make_unique<bredis::Connection<boost::asio::ip::tcp::socket &> >(*this->s_subscription);
+
+					boost::asio::spawn(ioc, 
+						std::bind(
+							&connection::subscription_proc,
+							this, 
+							std::placeholders::_1));
+				}
+
+				// this thing is good, could be extracted as an util class someday.
+				void subscription_proc(boost::asio::yield_context yield)
+				{
+					using parse_result_t = bredis::parse_result_mapper_t<
+						result_iterator,
+						bredis::parsing_policy::keep_result>;
+					using read_callback_t = std::function<void(
+						const boost::system::error_code &error_code, 
+						parse_result_t &&r)>;
+
+					boost::asio::streambuf rx_buff;
+					boost::system::error_code ec;
+					this->c_subscription->write(bredis::single_command_t{ "subscribe", "tinychat" });
+					std::cout << "bredis_client.hpp : starting subscription.." << std::endl;
+					while (true)
+					{
+						auto &parse_result = this->c_subscription->async_read(rx_buff, yield[ec]);
+						std::cout << "bredis_client.hpp : subscription got something" << std::endl;
+						auto extract = boost::apply_visitor(
+							bredis::extractor<result_iterator>(),
+							parse_result.result);
+						rx_buff.consume(parse_result.consumed);
+						auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
+						if (reply_arr.elements.size() != 3) continue;
+						auto &str_message = boost::get<bredis::extracts::string_t>(reply_arr.elements[0]);
+						auto &str_tinychat = boost::get<bredis::extracts::string_t>(reply_arr.elements[1]);
+						if (str_message.str != "message") continue;
+						if (str_tinychat.str != "tinychat") continue;
+						auto &str_target = boost::get<bredis::extracts::string_t>(reply_arr.elements[2]);
+						for (auto it = this->subcription_binds.begin(); it != this->subcription_binds.end(); ++it)
+						{
+							if (it->first == str_target.str)
+							{
+								it->second(yield);
+							}
+						}
+					}
 				}
 
 				void reload_users_sync()
@@ -39,7 +89,7 @@ namespace chatroom
 					this->c->write(bredis::single_command_t{ "HGETALL", "users" });
 					auto parse_result = this->c->read(rx_buff);
 					auto extract = boost::apply_visitor(
-						bredis::extractor<bredis::to_iterator<boost::asio::streambuf>::iterator_t>(),
+						bredis::extractor<result_iterator>(),
 						parse_result.result);
 					rx_buff.consume(parse_result.consumed);
 					auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
@@ -54,10 +104,23 @@ namespace chatroom
 					}
 				}
 
-				// TODO : auto call this upon user update (called via redis subscription)
-				template <typename user_update_handle = std::function<void(const std::string, const std::string) > >
+				void subscription_bind(const std::string &on_str, subscription_handler handler)
+				{
+					this->subcription_binds[on_str] = handler;
+				}
+
+				void auto_refresh_users(user_update_handle user_update)
+				{
+					this->subscription_bind("user_update", std::bind(
+						&connection::refresh_users,
+						this,
+						user_update,
+						std::placeholders::_1));
+				}
+
 				void refresh_users(user_update_handle user_update, boost::asio::yield_context yield)
 				{
+					std::cout << "bredis_client.hpp : refreshing user list.." << std::endl;
 					boost::asio::streambuf tx_buff, rx_buff;
 					boost::system::error_code ec;
 					std::size_t consumed = this->c->async_write(tx_buff, bredis::single_command_t{ "HGETALL", "users" }, yield[ec]);
@@ -68,7 +131,7 @@ namespace chatroom
 					tx_buff.consume(consumed);
 					auto parse_result = this->c->async_read(rx_buff, yield[ec]);
 					auto extract = boost::apply_visitor(
-						bredis::extractor<bredis::to_iterator<boost::asio::streambuf>::iterator_t>(),
+						bredis::extractor<result_iterator>(),
 						parse_result.result);
 					rx_buff.consume(parse_result.consumed);
 					auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
@@ -179,8 +242,14 @@ namespace chatroom
 				}
 			private:
 				boost::asio::io_context &ioc;
+
 				std::unique_ptr<boost::asio::ip::tcp::socket> s;
 				std::unique_ptr<bredis::Connection<boost::asio::ip::tcp::socket &> > c;
+
+				std::unique_ptr<boost::asio::ip::tcp::socket> s_subscription;
+				std::unique_ptr<bredis::Connection<boost::asio::ip::tcp::socket &> > c_subscription;
+				std::map<std::string, std::function<void(boost::asio::yield_context yield)> > subcription_binds;
+
 				std::map<std::string, std::string> user_auth_map;
 			};
 

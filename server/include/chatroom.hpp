@@ -310,6 +310,17 @@ namespace chatroom
 			return members.at(name).login_info->token;
 		}
 
+		void update_user(const std::string &name, const std::string &auth)
+		{
+			if (this->members.count(name))
+			{
+				this->members.at(name).auth = auth;
+			}
+			else {
+				this->members.insert(std::make_pair(name, Person<session_type>(name, auth)));
+			}
+		}
+
 		bool verify(const std::string &name, const std::string &token, session_type &session)
 		{
 			if(members.count(name) == 0)
