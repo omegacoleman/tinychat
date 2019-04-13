@@ -18,11 +18,13 @@
 #include "db/bredis_client.hpp"
 
 #include "tinyrpc/rpc_websocket_service.hpp"
+#include "boost_system_exception.hpp"
+
 using namespace tinyrpc;
 
 
-using tcp = boost::asio::ip::tcp;	 // from <boost/asio/ip/tcp.hpp>
-namespace websocket = boost::beast::websocket;  // from <boost/beast/websocket.hpp>
+using tcp = boost::asio::ip::tcp;
+namespace websocket = boost::beast::websocket;
 
 using ws = websocket::stream<tcp::socket>;
 
@@ -44,18 +46,6 @@ void dummy_db_checkin(chatroom::LogIterator start, chatroom::LogIterator end, st
 
 std::unique_ptr<chatroom::Room<rpc_session> > room;
 std::unique_ptr<chatroom::ChatLog<> > chatlog;
-
-class VendorBoostSystemException : public std::exception
-{
-public:
-	VendorBoostSystemException(boost::system::error_code &ec)
-	:ec(ec) {}
-	virtual const char* what() const noexcept
-	{
-		return ec.message().c_str();
-	}
-	boost::system::error_code &ec;
-};
 
 class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
@@ -89,10 +79,10 @@ public:
 		{
 			auto bytes = ws_.async_read(buf, yield[ec]);
 			if (ec)
-				return;
+				throw tinychat::utility::boost_system_ec_exception(ec);
 			rpc_stub_.dispatch(buf, ec);
 			if (ec)
-				return;
+				throw tinychat::utility::boost_system_ec_exception(ec);
 			buf.consume(bytes);
 		}
 	}
@@ -167,7 +157,7 @@ public:
 		this->rpc_stub_.async_call(req, reply, yield[ec]);
 		if(ec)
 		{
-			throw VendorBoostSystemException(ec);
+			throw tinychat::utility::boost_system_ec_exception(ec);
 		}
 	}
 
@@ -186,12 +176,6 @@ private:
 	rpc_websocket_service<ws> rpc_stub_;
 };
 
-
-void fail(boost::system::error_code ec, char const* what)
-{
-	std::cerr << what << ": " << ec.message() << "\n";
-}
-
 void do_session(tcp::socket& socket, boost::asio::yield_context yield)
 {
 	boost::system::error_code ec;
@@ -200,7 +184,7 @@ void do_session(tcp::socket& socket, boost::asio::yield_context yield)
 
 	s.async_accept(yield[ec]);
 	if(ec)
-		return fail(ec, "accept");
+		throw tinychat::utility::boost_system_ec_exception(ec);
 
 	s.binary(true);
 
@@ -217,26 +201,26 @@ void do_listen(
 	tcp::acceptor acceptor(ioc);
 	acceptor.open(endpoint.protocol(), ec);
 	if(ec)
-		return fail(ec, "open");
+		throw tinychat::utility::boost_system_ec_exception(ec);
 
 	acceptor.set_option(boost::asio::socket_base::reuse_address(true), ec);
 	if(ec)
-		return fail(ec, "set_option");
+		throw tinychat::utility::boost_system_ec_exception(ec);
 
 	acceptor.bind(endpoint, ec);
 	if(ec)
-		return fail(ec, "bind");
+		throw tinychat::utility::boost_system_ec_exception(ec);
 
 	acceptor.listen(boost::asio::socket_base::max_listen_connections, ec);
 	if(ec)
-		return fail(ec, "listen");
+		throw tinychat::utility::boost_system_ec_exception(ec);
 
 	for(;;)
 	{
 		tcp::socket socket(ioc);
 		acceptor.async_accept(socket, yield[ec]);
 		if(ec)
-			fail(ec, "accept");
+			throw tinychat::utility::boost_system_ec_exception(ec);
 		else
 			boost::asio::spawn(
 				ioc,

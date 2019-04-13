@@ -1,13 +1,17 @@
 #pragma once
 
 #include <memory>
-
-#include "bredis.hpp"
+#include <map>
+#include <functional>
 
 #include "boost/asio.hpp"
 #include "boost/asio/spawn.hpp"
 
+#include "bredis.hpp"
+
 #include "chatroom.hpp"
+
+#include "boost_system_exception.hpp"
 
 namespace chatroom
 {
@@ -59,6 +63,10 @@ namespace chatroom
 					while (true)
 					{
 						auto &parse_result = this->c_subscription->async_read(rx_buff, yield[ec]);
+						if (ec)
+						{
+							throw tinychat::utility::boost_system_ec_exception(ec);
+						}
 						std::cout << "bredis_client.hpp : subscription got something" << std::endl;
 						auto extract = boost::apply_visitor(
 							bredis::extractor<result_iterator>(),
@@ -126,10 +134,14 @@ namespace chatroom
 					std::size_t consumed = this->c->async_write(tx_buff, bredis::single_command_t{ "HGETALL", "users" }, yield[ec]);
 					if (ec)
 					{
-						std::cerr << "bredis_client.hpp : error refreshing user list " << ec.message() << std::endl;
+						throw tinychat::utility::boost_system_ec_exception(ec);
 					}
 					tx_buff.consume(consumed);
 					auto parse_result = this->c->async_read(rx_buff, yield[ec]);
+					if (ec)
+					{
+						throw tinychat::utility::boost_system_ec_exception(ec);
+					}
 					auto extract = boost::apply_visitor(
 						bredis::extractor<result_iterator>(),
 						parse_result.result);
@@ -192,16 +204,14 @@ namespace chatroom
 						std::size_t consumed = this->c->async_write(tx_buff, container, yield[ec]);
 						if (ec)
 						{
-							std::cerr << "bredis_client.hpp: checkin_log_proc : writing to redis server FAILED, error : " << ec.message() << std::endl;
-							return;
+							throw tinychat::utility::boost_system_ec_exception(ec);
 						}
 						tx_buff.consume(consumed);
 
 						auto parse_result = this->c->async_read(rx_buff, yield[ec], container.size());
 						if (ec)
 						{
-							std::cerr << "bredis_client.hpp: checkin_log_proc : reading from redis server FAILED, error : " << ec.message() << std::endl;
-							return;
+							throw tinychat::utility::boost_system_ec_exception(ec);
 						}
 						auto &replies = boost::get<bredis::markers::array_holder_t<result_iterator> >(parse_result.result);
 
