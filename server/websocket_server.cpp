@@ -1,7 +1,3 @@
-#include <boost/beast/core.hpp>
-#include <boost/beast/websocket.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/spawn.hpp>
 #include <algorithm>
 #include <cstdlib>
 #include <functional>
@@ -11,14 +7,20 @@
 #include <thread>
 #include <vector>
 
+#include "boost/asio.hpp"
+#include "boost/asio/spawn.hpp"
+
 #include "chat.pb.h"
 
 #include "chatroom.hpp"
 
 #include "db/bredis_client.hpp"
+#include "db/dummy_client.hpp"
 
 #include "tinyrpc/rpc_websocket_service.hpp"
 #include "boost_system_exception.hpp"
+
+#include "boost/program_options.hpp"
 
 using namespace tinyrpc;
 
@@ -31,18 +33,6 @@ using ws = websocket::stream<tcp::socket>;
 boost::asio::io_context ioc;
 
 class rpc_session;
-
-void dummy_db_checkin(chatroom::LogIterator start, chatroom::LogIterator end, std::function<void ()> callback)
-{
-	std::cout << "Pretending to checkin these to db : " << std::endl;
-	std::cout << "-----------------------------------" << std::endl;
-	for(; start != end; ++start)
-	{
-		std::cout << start->sender << " : " << start->text << std::endl;
-	}
-	std::cout << "-----------------------------------" << std::endl;
-	callback();
-}
 
 std::unique_ptr<chatroom::Room<rpc_session> > room;
 std::unique_ptr<chatroom::ChatLog > chatlog;
@@ -266,34 +256,58 @@ void do_listen(
 
 int main(int argc, char* argv[])
 {
+	room = std::make_unique<chatroom::Room<rpc_session> >();
 	chatlog = std::make_unique<chatroom::ChatLog>(30, 10, 14);
 
-	// TODO : switch to boost::program_option
-	if (argc != 5)
+	boost::program_options::options_description desc{ "Options" };
+	desc.add_options()
+		("help", "Print help message")
+		("host", boost::program_options::value<std::string>()->default_value("0.0.0.0"), "The host to listen")
+		("port", boost::program_options::value<unsigned short>()->default_value(8000), "The port to listen")
+		("db-redis", boost::program_options::value<std::string>(), "Connect to redis at specified host as database")
+		("redis-port", boost::program_options::value<unsigned short>()->default_value(6379), "Redis database port, use with --db-redis")
+		("db-dummy", "Connect to an internal fake database for testing")
+		;
+	boost::program_options::variables_map vm;
+	boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
+	boost::program_options::notify(vm);
+	if (vm.count("help"))
 	{
-		std::cerr <<
-		"Usage: websocket-server <address> <port> <redis_host> <redis_port>\n" <<
-		"Example:\n" <<
-		"   websocket-server 0.0.0.0 8000 127.0.0.1 6379\n";
+		std::cerr << desc << std::endl;
 		return EXIT_FAILURE;
 	}
-	auto const address = boost::asio::ip::make_address(argv[1]);
-	auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
 
-	const std::string redis_host(argv[3]);
-	auto const redis_port = static_cast<unsigned short>(std::atoi(argv[4]));
+	auto const address = boost::asio::ip::address::from_string(vm["host"].as<std::string>() );
+	auto const port = vm["port"].as<unsigned short>();
 
-	chatroom::db::via_bredis::connection db_conn(ioc, redis_host, redis_port);
-	chatlog->auto_checkin([&db_conn](chatroom::LogIterator it, chatroom::LogIterator end, std::function<void()> done_callback) {
-		db_conn.checkin_log(it, end, done_callback);
-	});
+	std::unique_ptr<chatroom::db::via_bredis::connection> db_conn;
 
-	db_conn.reload_users_sync();
-	auto &user_auth_it_pair = db_conn.users();
-	room = chatroom::Room<rpc_session>::load_room(user_auth_it_pair.first, user_auth_it_pair.second);
-	db_conn.auto_refresh_users([](const std::string &name, const std::string &auth) {
-		room->update_user(name, auth);
-	});
+	if (vm.count("db-redis"))
+	{
+		db_conn = std::make_unique<chatroom::db::via_bredis::connection>(
+			ioc,
+			vm["db-redis"].as<std::string>(),
+			vm["redis-port"].as<unsigned short>());
+		db_conn->reload_users_sync();
+		auto &user_auth_it_pair = db_conn->users();
+		room->load(user_auth_it_pair.first, user_auth_it_pair.second);
+		db_conn->auto_refresh_users([](const std::string &name, const std::string &auth) {
+			room->update_user(name, auth);
+		});
+		chatlog->auto_checkin([&db_conn](chatroom::LogIterator it, chatroom::LogIterator end, std::function<void()> done_callback) {
+			db_conn->checkin_log(it, end, done_callback);
+		});
+	}
+	else if (vm.count("db-dummy"))
+	{
+		room->load(chatroom::db::dummy::dummy_user_auth.begin(), chatroom::db::dummy::dummy_user_auth.end());
+		chatlog->auto_checkin(chatroom::db::dummy::dummy_db_checkin);
+	}
+	else
+	{
+		std::cerr << "error : must at least specify one db client, check --help for more" << std::endl;
+		return EXIT_FAILURE;
+	}
 
 	boost::asio::spawn(ioc, [&address, &port](boost::asio::yield_context yield)
 	{

@@ -6,7 +6,7 @@ set(Boost_ARCHITECTURE -x64)
 set(Boost_COMPILER -mgw81)
 set(Boost_USE_STATIC_RUNTIME ON)
 
-find_package(Boost REQUIRED COMPONENTS coroutine context thread)
+find_package(Boost REQUIRED COMPONENTS coroutine context thread program_options)
 find_package(Protobuf REQUIRED)
 find_package(Threads)
 

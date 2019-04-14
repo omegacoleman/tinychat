@@ -280,19 +280,13 @@ namespace chatroom
 	template<typename session_type> class Room
 	{
 	public:
-		Room()
-		:members()
-		{}
-
 		template <typename UserAuthPairIterator>
-		static std::unique_ptr<Room> load_room(UserAuthPairIterator it, UserAuthPairIterator end)
+		void load(UserAuthPairIterator it, UserAuthPairIterator end)
 		{
-			std::unique_ptr<Room> room = std::make_unique<Room>();
 			for (; it != end; ++it)
 			{
-				room->members.insert(std::make_pair(it->first, Person<session_type>(it->first, it->second)));
+				this->members.insert(std::make_pair(it->first, Person<session_type>(it->first, it->second)));
 			}
-			return room;
 		}
 
 		std::string login(const std::string &name, const std::string &auth, session_type &session)
