@@ -80,13 +80,10 @@ namespace chatroom
 
 	using LogIterator = std::deque<Message>::iterator;
 
-	template <typename checkin_range_callable = 
-	std::function<void (LogIterator, LogIterator, std::function<void ()> ) > >
+	using checkin_range_callable = std::function<void(LogIterator, LogIterator, std::function<void()>)>;
 	class ChatLog
 	{
 	public:
-		using CheckinFunction = checkin_range_callable;
-
 		ChatLog(size_t size_limit, size_t checkin_bundle_size, 
 			size_t log_revise_size)
 		: size_limit(size_limit),
@@ -119,22 +116,21 @@ namespace chatroom
 			}
 		}
 
-		void checkin_all(checkin_range_callable &callable)
+		void checkin_all(checkin_range_callable callable)
 		{
-			this->checkin(this->not_checked_in_n(), std::forward(callable));
+			this->checkin(this->not_checked_in_n(), callable);
 		}
 
-		void checkin(size_t amount, checkin_range_callable &callable)
+		void checkin(size_t amount, checkin_range_callable callable)
 		{
 			std::cout << "ChatLog : attempt to checkin " << amount << " logs..." << std::endl;
 			if (amount > this->not_checked_in_n()) {
 				throw CheckInTooMuchException();
 			}
-			callable(this->checkin_it(), (this->checkin_it() + amount), std::bind(
-				&ChatLog::checkin_done, 
-				this, 
-				amount
-				));
+			callable(this->checkin_it(), (this->checkin_it() + amount), [=]()
+			{
+				this->checkin_done(amount);
+			});
 		}
 
 		void checkin_done(size_t amount)
@@ -150,7 +146,7 @@ namespace chatroom
 			}
 		}
 
-		void auto_checkin(checkin_range_callable &handler)
+		void auto_checkin(checkin_range_callable handler)
 		{
 			this->checkin_handler.emplace(handler);
 		}
@@ -244,20 +240,27 @@ namespace chatroom
 		class LoginInfo
 		{
 		public:
-			LoginInfo(std::string name, session_type& session, uint64_t unix_time=0)
+			LoginInfo(const std::string &name, session_type& session, uint64_t unix_time=0)
 			:login_unix_time(unix_time ? unix_time : std::time(NULL)),
 			token_uuid(boost::uuids::random_generator()()),
 			token(),
 			session(session),
-			error_clear(true)
+			name(name)
 			{
+				std::cout << "LoginInfo : " << name << " log in." << std::endl;
 				this->token = boost::uuids::to_string(this->token_uuid);
 			}
+
+			~LoginInfo()
+			{
+				std::cout << "LoginInfo : " << name << " log out." << std::endl;
+			}
+
+			std::string name;
 			uint64_t login_unix_time;
 			std::string token;
 			boost::uuids::uuid token_uuid;
 			session_type& session;
-			bool error_clear;
 
 			bool verify(const std::string &token, const session_type& session) const
 			{
@@ -310,6 +313,22 @@ namespace chatroom
 			return members.at(name).login_info->token;
 		}
 
+		void logout(const std::string &name)
+		{
+			members.at(name).login_info.reset();
+		}
+
+		void update_user(const std::string &name, const std::string &auth)
+		{
+			if (this->members.count(name))
+			{
+				this->members.at(name).auth = auth;
+			}
+			else {
+				this->members.insert(std::make_pair(name, Person<session_type>(name, auth)));
+			}
+		}
+
 		bool verify(const std::string &name, const std::string &token, session_type &session)
 		{
 			if(members.count(name) == 0)
@@ -330,9 +349,8 @@ namespace chatroom
 					it->second.deliver_message(shared_message);
 				} catch (const std::exception &e)
 				{
-					std::cerr << "error occured while delivering message " << message.id << " to " << it->first << " : " << std::endl;
+					std::cerr << "Room : error occured while delivering message " << message.id << " to " << it->first << " : " << std::endl;
 					std::cerr << e.what() << std::endl;
-					it->second.login_info->error_clear = false;
 				}
 			}
 		}

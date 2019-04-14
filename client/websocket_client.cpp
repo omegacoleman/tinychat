@@ -146,7 +146,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 			std::cout << "login succeed." << std::endl;
 			std::string token = reply.token();
-			start_timed_heartbeat(ioc,name,token,std::chrono::seconds(1));
+			// start_timed_heartbeat(ioc,name,token,std::chrono::seconds(30));
 			std::cout << "your token : " << token << std::endl;
 			std::cout << "type to speak" << std::endl;
 			std::cout << "------------------" << std::endl;

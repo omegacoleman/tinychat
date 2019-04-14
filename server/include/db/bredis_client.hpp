@@ -1,13 +1,17 @@
 #pragma once
 
 #include <memory>
-
-#include "bredis.hpp"
+#include <map>
+#include <functional>
 
 #include "boost/asio.hpp"
 #include "boost/asio/spawn.hpp"
 
+#include "bredis.hpp"
+
 #include "chatroom.hpp"
+
+#include "boost_system_exception.hpp"
 
 namespace chatroom
 {
@@ -16,6 +20,8 @@ namespace chatroom
 		namespace via_bredis
 		{
 			using result_iterator = typename bredis::to_iterator<boost::asio::streambuf>::iterator_t;
+			using user_update_handle = std::function<void(const std::string &, const std::string &) >;
+			using subscription_handler = std::function<void(boost::asio::yield_context yield)>;
 
 			class connection
 			{
@@ -27,8 +33,75 @@ namespace chatroom
 						boost::asio::ip::address::from_string(host), port);
 					this->s = std::make_unique<boost::asio::ip::tcp::socket>(ioc, end.protocol());
 					this->s->connect(end);
-
 					this->c = std::make_unique<bredis::Connection<boost::asio::ip::tcp::socket &> >(*this->s);
+
+					this->s_subscription = std::make_unique<boost::asio::ip::tcp::socket>(ioc, end.protocol());
+					this->s_subscription->connect(end);
+					this->c_subscription = std::make_unique<bredis::Connection<boost::asio::ip::tcp::socket &> >(*this->s_subscription);
+
+					boost::asio::spawn(ioc, [this](boost::asio::yield_context yield)
+					{
+						try
+						{
+							this->subscription_proc(yield);
+						}
+						catch (const std::exception &e) {
+							std::cerr << "bredis_client.hpp : subscription failed : " << e.what() << ", auto-updating features may fail." << std::endl;
+						}
+					});
+				}
+
+				// this thing is good, could be extracted as an util class someday.
+				void subscription_proc(boost::asio::yield_context yield)
+				{
+					using parse_result_t = bredis::parse_result_mapper_t<
+						result_iterator,
+						bredis::parsing_policy::keep_result>;
+					using read_callback_t = std::function<void(
+						const boost::system::error_code &error_code, 
+						parse_result_t &&r)>;
+
+					boost::asio::streambuf rx_buff;
+					boost::system::error_code ec;
+					auto command = bredis::single_command_t{ "subscribe", "tinychat" };
+					this->c_subscription->write(command);
+					std::cout << "bredis_client.hpp : starting subscription.." << std::endl;
+					auto &initial_parse_result = this->c_subscription->async_read(rx_buff, yield[ec]);
+					if (! boost::apply_visitor(
+						bredis::marker_helpers::check_subscription<result_iterator>(
+							command), initial_parse_result.result))
+					{
+						throw std::exception("subscription failed");
+					}
+					rx_buff.consume(initial_parse_result.consumed);
+					std::cout << "bredis_client.hpp : subscription started" << std::endl;
+					while (true)
+					{
+						auto &parse_result = this->c_subscription->async_read(rx_buff, yield[ec]);
+						if (ec)
+						{
+							throw tinychat::utility::boost_system_ec_exception(ec);
+						}
+						std::cout << "bredis_client.hpp : subscription got something" << std::endl;
+						auto extract = boost::apply_visitor(
+							bredis::extractor<result_iterator>(),
+							parse_result.result);
+						rx_buff.consume(parse_result.consumed);
+						auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
+						if (reply_arr.elements.size() != 3) continue;
+						auto &str_message = boost::get<bredis::extracts::string_t>(reply_arr.elements[0]);
+						auto &str_tinychat = boost::get<bredis::extracts::string_t>(reply_arr.elements[1]);
+						if (str_message.str != "message") continue;
+						if (str_tinychat.str != "tinychat") continue;
+						auto &str_target = boost::get<bredis::extracts::string_t>(reply_arr.elements[2]);
+						for (auto it = this->subcription_binds.begin(); it != this->subcription_binds.end(); ++it)
+						{
+							if (it->first == str_target.str)
+							{
+								it->second(yield);
+							}
+						}
+					}
 				}
 
 				void reload_users_sync()
@@ -39,7 +112,7 @@ namespace chatroom
 					this->c->write(bredis::single_command_t{ "HGETALL", "users" });
 					auto parse_result = this->c->read(rx_buff);
 					auto extract = boost::apply_visitor(
-						bredis::extractor<bredis::to_iterator<boost::asio::streambuf>::iterator_t>(),
+						bredis::extractor<result_iterator>(),
 						parse_result.result);
 					rx_buff.consume(parse_result.consumed);
 					auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
@@ -50,25 +123,41 @@ namespace chatroom
 						auto &auth_str = boost::get<bredis::extracts::string_t>(*it);
 						++it;
 						this->user_auth_map.insert(std::make_pair(user_str.str, auth_str.str));
-						std::cout << "loading user : " << user_str.str << " $$ " << auth_str.str << std::endl;
+						std::cout << "bredis_client.hpp : loading user : " << user_str.str << std::endl;
 					}
 				}
 
-				// TODO : auto call this upon user update (called via redis subscription)
-				template <typename user_update_handle = std::function<void(const std::string, const std::string) > >
+				void subscription_bind(const std::string &on_str, subscription_handler handler)
+				{
+					this->subcription_binds[on_str] = handler;
+				}
+
+				void auto_refresh_users(user_update_handle user_update)
+				{
+					this->subscription_bind("user_update", [user_update, this](boost::asio::yield_context yield)
+					{
+						this->refresh_users(user_update, yield);
+					});
+				}
+
 				void refresh_users(user_update_handle user_update, boost::asio::yield_context yield)
 				{
+					std::cout << "bredis_client.hpp : refreshing user list.." << std::endl;
 					boost::asio::streambuf tx_buff, rx_buff;
 					boost::system::error_code ec;
 					std::size_t consumed = this->c->async_write(tx_buff, bredis::single_command_t{ "HGETALL", "users" }, yield[ec]);
 					if (ec)
 					{
-						std::cerr << "bredis_client.hpp : error refreshing user list " << ec.message() << std::endl;
+						throw tinychat::utility::boost_system_ec_exception(ec);
 					}
 					tx_buff.consume(consumed);
 					auto parse_result = this->c->async_read(rx_buff, yield[ec]);
+					if (ec)
+					{
+						throw tinychat::utility::boost_system_ec_exception(ec);
+					}
 					auto extract = boost::apply_visitor(
-						bredis::extractor<bredis::to_iterator<boost::asio::streambuf>::iterator_t>(),
+						bredis::extractor<result_iterator>(),
 						parse_result.result);
 					rx_buff.consume(parse_result.consumed);
 					auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
@@ -81,7 +170,7 @@ namespace chatroom
 						if (! this->user_auth_map.count(user_str.str))
 						{
 							this->user_auth_map.insert(std::make_pair(user_str.str, auth_str.str));
-							std::cout << "adding user : " << user_str.str << " $$ " << auth_str.str << std::endl;
+							std::cout << "bredis_client.hpp : adding user : " << user_str.str << std::endl;
 							user_update(user_str.str, auth_str.str);
 						}
 					}
@@ -129,16 +218,14 @@ namespace chatroom
 						std::size_t consumed = this->c->async_write(tx_buff, container, yield[ec]);
 						if (ec)
 						{
-							std::cerr << "bredis_client.hpp: checkin_log_proc : writing to redis server FAILED, error : " << ec.message() << std::endl;
-							return;
+							throw tinychat::utility::boost_system_ec_exception(ec);
 						}
 						tx_buff.consume(consumed);
 
 						auto parse_result = this->c->async_read(rx_buff, yield[ec], container.size());
 						if (ec)
 						{
-							std::cerr << "bredis_client.hpp: checkin_log_proc : reading from redis server FAILED, error : " << ec.message() << std::endl;
-							return;
+							throw tinychat::utility::boost_system_ec_exception(ec);
 						}
 						auto &replies = boost::get<bredis::markers::array_holder_t<result_iterator> >(parse_result.result);
 
@@ -170,17 +257,28 @@ namespace chatroom
 
 				void checkin_log(chatroom::LogIterator it, chatroom::LogIterator end, std::function<void()> done_callback)
 				{
-					boost::asio::spawn(this->ioc,
-						std::bind(
-							&connection::checkin_log_proc,
-							this,
-							it, end, done_callback,
-							std::placeholders::_1));
+					boost::asio::spawn(this->ioc, [it, end, done_callback, this](boost::asio::yield_context yield)
+					{
+						try
+						{
+							this->checkin_log_proc(it, end, done_callback, yield);
+						}
+						catch (const std::exception &e)
+						{
+							std::cerr << "bredis_client.hpp : checkin_log failed, reason : " << e.what() << std::endl;
+						}
+					});
 				}
 			private:
 				boost::asio::io_context &ioc;
+
 				std::unique_ptr<boost::asio::ip::tcp::socket> s;
 				std::unique_ptr<bredis::Connection<boost::asio::ip::tcp::socket &> > c;
+
+				std::unique_ptr<boost::asio::ip::tcp::socket> s_subscription;
+				std::unique_ptr<bredis::Connection<boost::asio::ip::tcp::socket &> > c_subscription;
+				std::map<std::string, std::function<void(boost::asio::yield_context yield)> > subcription_binds;
+
 				std::map<std::string, std::string> user_auth_map;
 			};
 
