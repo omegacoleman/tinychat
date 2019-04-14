@@ -12,6 +12,7 @@
 #include "chatroom.hpp"
 
 #include "boost_system_exception.hpp"
+#include "worded_exception.hpp"
 
 namespace chatroom
 {
@@ -40,7 +41,7 @@ namespace chatroom
 					this->c_subscription = std::make_unique<bredis::Connection<boost::asio::ip::tcp::socket &> >(*this->s_subscription);
 
 					boost::asio::spawn(ioc, [this](boost::asio::yield_context yield)
-					{
+					mutable {
 						try
 						{
 							this->subscription_proc(yield);
@@ -66,18 +67,18 @@ namespace chatroom
 					auto command = bredis::single_command_t{ "subscribe", "tinychat" };
 					this->c_subscription->write(command);
 					std::cout << "bredis_client.hpp : starting subscription.." << std::endl;
-					auto &initial_parse_result = this->c_subscription->async_read(rx_buff, yield[ec]);
+					auto initial_parse_result = this->c_subscription->read(rx_buff);
 					if (! boost::apply_visitor(
 						bredis::marker_helpers::check_subscription<result_iterator>(
 							command), initial_parse_result.result))
 					{
-						throw std::exception("subscription failed");
+						throw tinychat::utility::worded_exception("subscription failed");
 					}
 					rx_buff.consume(initial_parse_result.consumed);
 					std::cout << "bredis_client.hpp : subscription started" << std::endl;
 					while (true)
 					{
-						auto &parse_result = this->c_subscription->async_read(rx_buff, yield[ec]);
+						parse_result_t parse_result = this->c_subscription->async_read(rx_buff, yield[ec]);
 						if (ec)
 						{
 							throw tinychat::utility::boost_system_ec_exception(ec);
@@ -112,7 +113,7 @@ namespace chatroom
 
 				void reload_users_sync()
 				{
-					if (occupied) throw std::exception("already occupied");
+					if (occupied) throw tinychat::utility::worded_exception("already occupied");
 					occupied = true;
 					this->user_auth_map.clear();
 
@@ -151,12 +152,12 @@ namespace chatroom
 
 				void refresh_users(user_update_handle user_update, boost::asio::yield_context yield)
 				{
-					if (occupied) throw std::exception("already occupied");
+					if (occupied) throw tinychat::utility::worded_exception("already occupied");
 					occupied = true;
 					std::cout << "bredis_client.hpp : refreshing user list.." << std::endl;
 					boost::asio::streambuf tx_buff, rx_buff;
 					boost::system::error_code ec;
-					std::size_t consumed = this->c->async_write(tx_buff, bredis::single_command_t{ "HGETALL", "users" }, yield[ec]);
+					auto consumed = this->c->async_write(tx_buff, bredis::single_command_t{ "HGETALL", "users" }, yield[ec]);
 					if (ec)
 					{
 						throw tinychat::utility::boost_system_ec_exception(ec);
@@ -197,7 +198,7 @@ namespace chatroom
 
 				void checkin_log_proc(chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback, boost::asio::yield_context yield)
 				{
-					if (occupied) throw std::exception("already occupied");
+					if (occupied) throw tinychat::utility::worded_exception("already occupied");
 					occupied = true;
 					boost::asio::streambuf tx_buff, rx_buff;
 					boost::system::error_code ec;
@@ -272,7 +273,7 @@ namespace chatroom
 				void checkin_log(chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback)
 				{
 					boost::asio::spawn(this->ioc, [it, end, done_callback, this](boost::asio::yield_context yield)
-					{
+					mutable {
 						try
 						{
 							this->checkin_log_proc(it, end, done_callback, yield);

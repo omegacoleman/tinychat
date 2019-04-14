@@ -190,15 +190,15 @@ private:
 	std::optional<std::string> login_name;
 };
 
-void do_session(tcp::socket& socket)
+void do_session(tcp::socket &socket)
 {
-	boost::asio::spawn(ioc, [&socket](boost::asio::yield_context yield)
+	boost::asio::spawn(ioc, [&socket](boost::asio::yield_context yield) mutable
 	{
 		try
 		{
 			boost::system::error_code ec;
 
-			ws s{ std::move(socket) };
+			ws s{std::move(socket)};
 
 			s.async_accept(yield[ec]);
 			if (ec)
@@ -249,7 +249,7 @@ void do_listen(
 		}
 		else
 		{
-			do_session(std::move(socket));
+			do_session(socket);
 		}
 	}
 }
@@ -297,7 +297,7 @@ int main(int argc, char* argv[])
 				vm["db-redis"].as<std::string>(),
 				vm["redis-port"].as<unsigned short>());
 			db_conn->reload_users_sync();
-			auto &user_auth_it_pair = db_conn->users();
+			auto user_auth_it_pair = db_conn->users();
 			room->load(user_auth_it_pair.first, user_auth_it_pair.second);
 			db_conn->auto_refresh_users([](const std::string &name, const std::string &auth) {
 				room->update_user(name, auth);
