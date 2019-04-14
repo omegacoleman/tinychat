@@ -12,7 +12,7 @@ namespace chatroom
 	{
 		namespace dummy
 		{
-			void dummy_db_checkin(chatroom::LogIterator it, chatroom::LogIterator end, std::function<void()> callback)
+			void dummy_db_checkin(chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> callback)
 			{
 				std::cout << "dummy_client.hpp : Pretending to checkin these to db : " << std::endl;
 				std::cout << "-----------------------------------" << std::endl;

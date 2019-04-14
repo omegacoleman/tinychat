@@ -77,10 +77,6 @@ namespace chatroom
 		"ChatLog : checkin_bundle_size shall be under size_limit, and "
 		"log_revise_size shall be under floor(size_limit / 2)");
 
-
-	using LogIterator = std::deque<Message>::iterator;
-
-	using checkin_range_callable = std::function<void(LogIterator, LogIterator, std::function<void()>)>;
 	class ChatLog
 	{
 	public:
@@ -100,6 +96,22 @@ namespace chatroom
 				throw SizeUndesiredException();
 			}
 		}
+
+		class LogIterator : public std::iterator<std::bidirectional_iterator_tag, const Message>
+		{
+		public:
+			explicit LogIterator(ChatLog &chat_log, size_t index) : chat_log(chat_log), index(index) {}
+			LogIterator& operator++() { index++; return *this; }
+			LogIterator operator++(int) { LogIterator retval(chat_log, index); ++index; return retval; }
+			bool operator==(LogIterator other) const { return index == other.index; }
+			bool operator!=(LogIterator other) const { return index != other.index; }
+			reference operator*() const { return chat_log.logs[index]; }
+			Message *operator->() const { return &(chat_log.logs[index]); }
+
+			size_t index;
+			ChatLog &chat_log;
+		};
+		using checkin_range_callable = std::function<void(LogIterator, LogIterator, std::function<void()>)>;
 
 		template <typename message_iterator>
 		void load_from_db(message_iterator it, message_iterator end)
@@ -127,7 +139,7 @@ namespace chatroom
 			if (amount > this->not_checked_in_n()) {
 				throw CheckInTooMuchException();
 			}
-			callable(this->checkin_it(), (this->checkin_it() + amount), [=]()
+			callable(LogIterator(*this, this->checkin_i), LogIterator(*this, this->checkin_i + amount), [=]()
 			{
 				this->checkin_done(amount);
 			});
@@ -177,11 +189,6 @@ namespace chatroom
 			this->checkin_i -= amount;
 		}
 
-		LogIterator checkin_it()
-		{
-			return (this->logs.begin() + this->checkin_i);
-		}
-
 		size_t not_checked_in_n()
 		{
 			return (this->logs.size() - this->checkin_i);
@@ -191,11 +198,11 @@ namespace chatroom
 		{
 			if(this->logs.size() <= this->log_revise_size)
 			{
-				return std::make_pair(this->logs.begin(), this->logs.end());
+				return std::make_pair(LogIterator(*this, 0), LogIterator(*this, logs.size()));
 			}
 			return std::make_pair(
-				this->logs.end() - this->log_revise_size, 
-				this->logs.end());
+				LogIterator(*this, logs.size() - this->log_revise_size),
+				LogIterator(*this, logs.size()));
 		}
 
 		std::optional<checkin_range_callable> checkin_handler;

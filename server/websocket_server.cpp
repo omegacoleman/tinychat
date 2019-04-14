@@ -180,7 +180,7 @@ public:
 
 	std::string identity()
 	{
-		return login_name.value_or("#" + id);
+		return login_name.value_or("#" + std::to_string(id));
 	}
 
 private:
@@ -302,7 +302,7 @@ int main(int argc, char* argv[])
 			db_conn->auto_refresh_users([](const std::string &name, const std::string &auth) {
 				room->update_user(name, auth);
 			});
-			chatlog->auto_checkin([&db_conn](chatroom::LogIterator it, chatroom::LogIterator end, std::function<void()> done_callback) {
+			chatlog->auto_checkin([&db_conn](chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback) {
 				db_conn->checkin_log(it, end, done_callback);
 			});
 		}

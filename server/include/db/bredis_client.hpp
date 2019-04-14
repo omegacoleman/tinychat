@@ -27,7 +27,7 @@ namespace chatroom
 			{
 			public:
 				connection(boost::asio::io_context &ioc, const std::string host, const unsigned short port)
-					:ioc(ioc)
+					:ioc(ioc), occupied(false)
 				{
 					boost::asio::ip::tcp::endpoint end(
 						boost::asio::ip::address::from_string(host), port);
@@ -98,7 +98,13 @@ namespace chatroom
 						{
 							if (it->first == str_target.str)
 							{
-								it->second(yield);
+								try
+								{
+									it->second(yield);
+								}
+								catch (const std::exception &e) {
+									std::cerr << "bredis_client.hpp : subscription mission failed -- " << e.what() << std::endl;
+								}
 							}
 						}
 					}
@@ -106,6 +112,8 @@ namespace chatroom
 
 				void reload_users_sync()
 				{
+					if (occupied) throw std::exception("already occupied");
+					occupied = true;
 					this->user_auth_map.clear();
 
 					boost::asio::streambuf rx_buff;
@@ -125,6 +133,7 @@ namespace chatroom
 						this->user_auth_map.insert(std::make_pair(user_str.str, auth_str.str));
 						std::cout << "bredis_client.hpp : loading user : " << user_str.str << std::endl;
 					}
+					occupied = false;
 				}
 
 				void subscription_bind(const std::string &on_str, subscription_handler handler)
@@ -142,6 +151,8 @@ namespace chatroom
 
 				void refresh_users(user_update_handle user_update, boost::asio::yield_context yield)
 				{
+					if (occupied) throw std::exception("already occupied");
+					occupied = true;
 					std::cout << "bredis_client.hpp : refreshing user list.." << std::endl;
 					boost::asio::streambuf tx_buff, rx_buff;
 					boost::system::error_code ec;
@@ -174,6 +185,7 @@ namespace chatroom
 							user_update(user_str.str, auth_str.str);
 						}
 					}
+					occupied = false;
 				}
 
 				using user_auth_pair_iterator = std::map<std::string, std::string>::const_iterator;
@@ -183,8 +195,10 @@ namespace chatroom
 					return std::make_pair(this->user_auth_map.cbegin(), this->user_auth_map.cend());
 				}
 
-				void checkin_log_proc(chatroom::LogIterator it, chatroom::LogIterator end, std::function<void()> done_callback, boost::asio::yield_context yield)
+				void checkin_log_proc(chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback, boost::asio::yield_context yield)
 				{
+					if (occupied) throw std::exception("already occupied");
+					occupied = true;
 					boost::asio::streambuf tx_buff, rx_buff;
 					boost::system::error_code ec;
 
@@ -252,10 +266,10 @@ namespace chatroom
 					else {
 						std::cerr << "bredis_client.hpp : some items failed to write to db" << std::endl;
 					}
-					
+					occupied = false;
 				}
 
-				void checkin_log(chatroom::LogIterator it, chatroom::LogIterator end, std::function<void()> done_callback)
+				void checkin_log(chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback)
 				{
 					boost::asio::spawn(this->ioc, [it, end, done_callback, this](boost::asio::yield_context yield)
 					{
@@ -269,6 +283,9 @@ namespace chatroom
 						}
 					});
 				}
+
+				bool occupied;
+
 			private:
 				boost::asio::io_context &ioc;
 
