@@ -10,12 +10,12 @@ namespace tinychat::utility
 	{
 	public:
 		boost_system_ec_exception(boost::system::error_code &ec)
-			:ec(ec) {}
+			:message(ec.message()) {}
 		virtual const char* what() const noexcept
 		{
-			return ec.message().c_str();
+			return message.c_str();
 		}
-		boost::system::error_code &ec;
+		std::string message;
 	};
 
 }

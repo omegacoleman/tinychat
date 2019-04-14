@@ -127,11 +127,10 @@ namespace chatroom
 			if (amount > this->not_checked_in_n()) {
 				throw CheckInTooMuchException();
 			}
-			callable(this->checkin_it(), (this->checkin_it() + amount), std::bind(
-				&ChatLog::checkin_done, 
-				this, 
-				amount
-				));
+			callable(this->checkin_it(), (this->checkin_it() + amount), [=]()
+			{
+				this->checkin_done(amount);
+			});
 		}
 
 		void checkin_done(size_t amount)
@@ -241,20 +240,27 @@ namespace chatroom
 		class LoginInfo
 		{
 		public:
-			LoginInfo(std::string name, session_type& session, uint64_t unix_time=0)
+			LoginInfo(const std::string &name, session_type& session, uint64_t unix_time=0)
 			:login_unix_time(unix_time ? unix_time : std::time(NULL)),
 			token_uuid(boost::uuids::random_generator()()),
 			token(),
 			session(session),
-			error_clear(true)
+			name(name)
 			{
+				std::cout << "LoginInfo : " << name << " log in." << std::endl;
 				this->token = boost::uuids::to_string(this->token_uuid);
 			}
+
+			~LoginInfo()
+			{
+				std::cout << "LoginInfo : " << name << " log out." << std::endl;
+			}
+
+			std::string name;
 			uint64_t login_unix_time;
 			std::string token;
 			boost::uuids::uuid token_uuid;
 			session_type& session;
-			bool error_clear;
 
 			bool verify(const std::string &token, const session_type& session) const
 			{
@@ -307,6 +313,11 @@ namespace chatroom
 			return members.at(name).login_info->token;
 		}
 
+		void logout(const std::string &name)
+		{
+			members.at(name).login_info.reset();
+		}
+
 		void update_user(const std::string &name, const std::string &auth)
 		{
 			if (this->members.count(name))
@@ -338,9 +349,8 @@ namespace chatroom
 					it->second.deliver_message(shared_message);
 				} catch (const std::exception &e)
 				{
-					std::cerr << "error occured while delivering message " << message.id << " to " << it->first << " : " << std::endl;
+					std::cerr << "Room : error occured while delivering message " << message.id << " to " << it->first << " : " << std::endl;
 					std::cerr << e.what() << std::endl;
-					it->second.login_info->error_clear = false;
 				}
 			}
 		}
