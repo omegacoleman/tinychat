@@ -1,22 +1,26 @@
-﻿#include <boost/beast/core.hpp>
-#include <boost/beast/websocket.hpp>
-#include <boost/asio.hpp>
-#include <boost/asio/spawn.hpp>
-#include <boost/thread.hpp>
+﻿#include "boost/beast.hpp"
+#include "boost/beast/websocket.hpp"
+#include "boost/asio.hpp"
+#include "boost/asio/spawn.hpp"
+#include "boost/thread.hpp"
+#include "boost/program_options.hpp"
 
 #include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <string>
 #include <async_stdio.hpp>
+
 #include "chat.pb.h"
 
 #include "tinyrpc/rpc_websocket_service.hpp"
 
+boost::program_options::variables_map arg_vm;
+
 using namespace tinyrpc;
 
-using tcp = boost::asio::ip::tcp;         // from <boost/asio/ip/tcp.hpp>
-namespace websocket = boost::beast::websocket;  // from <boost/beast/websocket.hpp>
+using tcp = boost::asio::ip::tcp;
+namespace websocket = boost::beast::websocket;
 
 using ws = websocket::stream<tcp::socket>;
 
@@ -146,7 +150,9 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 			std::cout << "login succeed." << std::endl;
 			std::string token = reply.token();
-			// start_timed_heartbeat(ioc,name,token,std::chrono::seconds(30));
+			long long hb_interval = arg_vm["heartbeat"].as<long long>();
+			if (hb_interval > 0)
+				start_timed_heartbeat(ioc,name,token,std::chrono::seconds(hb_interval));
 			std::cout << "your token : " << token << std::endl;
 			std::cout << "type to speak" << std::endl;
 			std::cout << "------------------" << std::endl;
@@ -223,12 +229,27 @@ void do_session(
 
 int main(int argc, char **argv)
 {
-	if ( argc != 3 )
+	boost::program_options::options_description desc("Options");
+	desc.add_options()
+		("help", "Print help message")
+		("server", boost::program_options::value<std::string>(), "Server address")
+		("port", boost::program_options::value<std::string>()->default_value("8000"), "Server port")
+		("heartbeat", boost::program_options::value<long long>()->default_value(30), 
+			"interval to send heartbeat packet, 0 means no heartbeat")
+		;
+
+	boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), arg_vm);
+	boost::program_options::notify(arg_vm);
+
+	if (arg_vm.count("help"))
 	{
-		std::cerr <<
-			"Usage: websocket-client <host> <port>\n" <<
-			"Example:\n" <<
-			"	websocket-client 127.0.0.1 8000\n";
+		std::cerr << desc << std::endl;
+		return EXIT_FAILURE;
+	}
+
+	if (! arg_vm.count("server"))
+	{
+		std::cerr << "error : server not specified, use --help for usage" << std::endl;
 		return EXIT_FAILURE;
 	}
 
@@ -239,8 +260,8 @@ int main(int argc, char **argv)
 
 	boost::asio::spawn(ioc, std::bind(
 				&do_session,
-				std::string(host),
-				std::string(port),
+				arg_vm["server"].as<std::string>(),
+				arg_vm["port"].as<std::string>(),
 				std::ref(ioc),
 				std::placeholders::_1));
 
