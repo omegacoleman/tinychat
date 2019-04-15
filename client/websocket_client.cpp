@@ -9,11 +9,14 @@
 #include <functional>
 #include <iostream>
 #include <string>
-#include <async_stdio.hpp>
 
 #include "chat.pb.h"
 
 #include "tinyrpc/rpc_websocket_service.hpp"
+
+#include "async_stdio.hpp"
+#include "boost_system_exception.hpp"
+#include "worded_exception.hpp"
 
 boost::program_options::variables_map arg_vm;
 
@@ -42,11 +45,15 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 			while ( true )
 			{
 				auto bytes = ws_.async_read(buf, yield[ec]);
-				if ( ec )
-					return;
+				if (ec)
+				{
+					throw tinychat::utility::boost_system_ec_exception(ec);
+				}
 				rpc_stub_.dispatch(buf, ec);
-				if ( ec )
-					return;
+				if (ec)
+				{
+					throw tinychat::utility::boost_system_ec_exception(ec);
+				}
 				buf.consume(bytes);
 			}
 		}
@@ -65,43 +72,49 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 			std::chrono::duration<std::size_t> duration
 			)
 		{
-			spawn(ioc,
-				[duration,name,token,&ioc,this](boost::asio::yield_context yield)
+			spawn(ioc, [duration, name, token, &ioc, this](boost::asio::yield_context yield)
+			{
+				try
 				{
 					boost::asio::steady_timer timer(ioc);
 					chat::VerifyRequest v_req;
 					v_req.set_name(name);
 					v_req.set_token(token);
 					boost::system::error_code ec;
-					boost::beast::websocket::close_reason reason;
-					try
+					while (true)
 					{
-						while(true)
+						timer.expires_after(duration);
+						timer.async_wait(yield[ec]);
+						if (ec)
 						{
-							timer.expires_after(duration);
-							timer.async_wait(yield);
-							chat::VerifyReply v_reply;
-							rpc_stub_.async_call(v_req, v_reply, yield);
-							if (!v_reply.ok())
-							{
-								reason.reason = "connection interrupted.";
-								break;
-							}
+							throw tinychat::utility::boost_system_ec_exception(ec);
+						}
+						chat::VerifyReply v_reply;
+						rpc_stub_.async_call(v_req, v_reply, yield[ec]);
+						if (ec)
+						{
+							throw tinychat::utility::boost_system_ec_exception(ec);
+						}
+						if (!v_reply.ok())
+						{
+							throw tinychat::utility::worded_exception("server replied not ok");
 						}
 					}
-					catch (boost::system::system_error &error)
-					{
-						reason.reason = std::string("System error: ")+error.what();
-					}
-					ws_.close(reason);
-				});
+				}
+				catch (const std::exception &e) {
+					std::cerr << "heartbeat : " << e.what() << std::endl;
+					_exit(EXIT_FAILURE);
+				}
+			});
 		}
 
 		void chat_proc(boost::asio::yield_context yield, boost::asio::io_context &ioc)
 		{
 			rpc_stub_.rpc_bind<chat::NotifyChatMessageRequest, chat::NotifyChatMessageReply>(
-					std::bind(&rpc_session::notify_chat_message_service, this,
-						std::placeholders::_1, std::placeholders::_2));
+				[this] (const chat::NotifyChatMessageRequest &req, chat::NotifyChatMessageReply &reply)
+			{
+				this->notify_chat_message_service(req, reply);
+			});
 
 
 			boost::system::error_code ec;
@@ -121,10 +134,9 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 			chat::LoginReply reply;
 
 			rpc_stub_.async_call(msg, reply, yield[ec]);
-			if ( ec )
+			if (ec)
 			{
-				std::cout << "error: " << ec.message() << std::endl;
-				return;
+				throw tinychat::utility::boost_system_ec_exception(ec);
 			}
 
 			if ( reply.state() != chat::LoginReply::ok )
@@ -159,27 +171,28 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 			while ( true )
 			{
-				auto context = tinychat::utility::async_stdin_getline(ioc,yield[ec]);
+				auto context = tinychat::utility::async_stdin_getline(ioc, yield[ec]);
+				if (ec)
 				{
-					chat::ChatSendRequest v_req;
-					chat::ChatSendReply v_reply;
-					v_req.set_name(name);
-					v_req.set_token(token);
-					v_req.set_text(context);
-					rpc_stub_.async_call(v_req, v_reply, yield[ec]);
-					if ( ec )
-					{
-						std::cerr << "error: " << ec.message() << std::endl;
-						return;
-					}
-					if ( v_reply.result() == chat::ChatSendReply::ok )
-					{
-						std::cout << "message sent" << std::endl;
-					}
-					else
-					{
-						std::cout << "message failed to send" << std::endl;
-					}
+					throw tinychat::utility::boost_system_ec_exception(ec);
+				}
+				chat::ChatSendRequest v_req;
+				chat::ChatSendReply v_reply;
+				v_req.set_name(name);
+				v_req.set_token(token);
+				v_req.set_text(context);
+				rpc_stub_.async_call(v_req, v_reply, yield[ec]);
+				if (ec)
+				{
+					throw tinychat::utility::boost_system_ec_exception(ec);
+				}
+				if ( v_reply.result() == chat::ChatSendReply::ok )
+				{
+					std::cout << "message sent" << std::endl;
+				}
+				else
+				{
+					std::cout << "message failed to send" << std::endl;
 				}
 			}
 		}
@@ -188,12 +201,6 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 		ws ws_;
 		rpc_websocket_service<ws> rpc_stub_;
 };
-
-
-void fail(boost::system::error_code ec, char const *what)
-{
-	std::cerr << what << ": " << ec.message() << "\n";
-}
 
 void do_session(
 		std::string const &host,
@@ -207,66 +214,98 @@ void do_session(
 	ws s{ioc};
 
 	auto const results = resolver.async_resolve(host, port, yield[ec]);
-	if ( ec )
-		return fail(ec, "resolve");
+	if (ec)
+	{
+		throw tinychat::utility::boost_system_ec_exception(ec);
+	}
 
 	boost::asio::async_connect(s.next_layer(), results.begin(), results.end(),
 			yield[ec]);
-	if ( ec )
-		return fail(ec, "connect");
+	if (ec)
+	{
+		throw tinychat::utility::boost_system_ec_exception(ec);
+	}
 
 	s.async_handshake(host, "/test", yield[ec]);
-	if ( ec )
-		return fail(ec, "handshake");
+	if (ec)
+	{
+		throw tinychat::utility::boost_system_ec_exception(ec);
+	}
 
 	s.binary(true);
 
 	auto ses = std::make_shared<rpc_session>(std::move(s));
-	boost::asio::spawn(ioc,
-			std::bind(&rpc_session::run, ses, std::placeholders::_1));
+	boost::asio::spawn(ioc, [&ses] (boost::asio::yield_context yield)
+	{
+		try
+		{
+			ses->run(yield);
+		}
+		catch (const std::exception &e) {
+			std::cerr << "error in session : " << e.what() << std::endl;
+			_exit(EXIT_FAILURE);
+		}
+	});
 	ses->chat_proc(yield, ioc);
 }
 
 int main(int argc, char **argv)
 {
-	boost::program_options::options_description desc("Options");
-	desc.add_options()
-		("help", "Print help message")
-		("server", boost::program_options::value<std::string>(), "Server address")
-		("port", boost::program_options::value<std::string>()->default_value("8000"), "Server port")
-		("heartbeat", boost::program_options::value<long long>()->default_value(30), 
-			"interval to send heartbeat packet, 0 means no heartbeat")
-		;
-
-	boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), arg_vm);
-	boost::program_options::notify(arg_vm);
-
-	if (arg_vm.count("help"))
+	try
 	{
-		std::cerr << desc << std::endl;
+		boost::program_options::options_description desc("Options");
+		desc.add_options()
+			("help", "Print help message")
+			("server", boost::program_options::value<std::string>(), "Server address")
+			("port", boost::program_options::value<std::string>()->default_value("8000"), "Server port")
+			("heartbeat", boost::program_options::value<long long>()->default_value(30),
+				"interval to send heartbeat packet, 0 means no heartbeat")
+			;
+
+		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), arg_vm);
+		boost::program_options::notify(arg_vm);
+
+		if (arg_vm.count("help"))
+		{
+			std::cerr << desc << std::endl;
+			return EXIT_FAILURE;
+		}
+
+		if (!arg_vm.count("server"))
+		{
+			std::cerr << "error : server not specified, use --help for usage" << std::endl;
+			return EXIT_FAILURE;
+		}
+
+		auto const host = argv[1];
+		auto const port = argv[2];
+
+		boost::asio::io_context ioc;
+
+		boost::asio::spawn(ioc, [&ioc](boost::asio::yield_context yield)
+		{
+			try
+			{
+				do_session(
+					arg_vm["server"].as<std::string>(),
+					arg_vm["port"].as<std::string>(),
+					ioc,
+					yield
+				);
+			}
+			catch (const std::exception &e) {
+				std::cerr << "error creating session : " << e.what() << std::endl;
+				_exit(EXIT_FAILURE);
+			}
+		});
+
+		ioc.run();
+
+		return EXIT_SUCCESS;
+	}
+	catch (const std::exception &e) {
+		std::cerr << "error in main process : " << e.what() << std::endl;
 		return EXIT_FAILURE;
 	}
-
-	if (! arg_vm.count("server"))
-	{
-		std::cerr << "error : server not specified, use --help for usage" << std::endl;
-		return EXIT_FAILURE;
-	}
-
-	auto const host = argv[1];
-	auto const port = argv[2];
-
-	boost::asio::io_context ioc;
-
-	boost::asio::spawn(ioc, std::bind(
-				&do_session,
-				arg_vm["server"].as<std::string>(),
-				arg_vm["port"].as<std::string>(),
-				std::ref(ioc),
-				std::placeholders::_1));
-
-	ioc.run();
-
-	return EXIT_SUCCESS;
 }
 
