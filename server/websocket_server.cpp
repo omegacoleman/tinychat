@@ -190,29 +190,26 @@ private:
 	std::optional<std::string> login_name;
 };
 
-void do_session(tcp::socket &socket)
+void do_session(tcp::socket &socket, boost::asio::yield_context yield)
 {
-	boost::asio::spawn(ioc, [&socket](boost::asio::yield_context yield) mutable
+	try
 	{
-		try
-		{
-			boost::system::error_code ec;
+		boost::system::error_code ec;
 
-			ws s{std::move(socket)};
+		ws s{std::move(socket)};
 
-			s.async_accept(yield[ec]);
-			if (ec)
-				throw tinychat::utility::boost_system_ec_exception(ec);
+		s.async_accept(yield[ec]);
+		if (ec)
+			throw tinychat::utility::boost_system_ec_exception(ec);
 
-			s.binary(true);
+		s.binary(true);
 
-			auto ses = std::make_shared<rpc_session>(std::move(s));
-			ses->run(yield);
-		}
-		catch (const std::exception &e) {
-			std::cerr << "do_session failed once, reason : " << e.what() << std::endl;
-		}
-	});
+		auto ses = std::make_shared<rpc_session>(std::move(s));
+		ses->run(yield);
+	}
+	catch (const std::exception &e) {
+		std::cerr << "do_session failed once, reason : " << e.what() << std::endl;
+	}
 }
 
 void do_listen(
@@ -249,7 +246,11 @@ void do_listen(
 		}
 		else
 		{
-			do_session(socket);
+			boost::asio::spawn(ioc, [socket{std::move(socket)}](
+				boost::asio::yield_context yield) mutable
+			{
+				do_session(socket, yield);
+			});
 		}
 	}
 }
