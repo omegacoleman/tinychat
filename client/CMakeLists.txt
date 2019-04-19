@@ -13,4 +13,5 @@ target_link_libraries(
         ${Boost_LIBRARIES}
         ${PROTOBUF_LIBRARIES}
         ${WIN32_EXTRA_LIBRARIES}
+		${OPENSSL_LIBRARIES}
 )

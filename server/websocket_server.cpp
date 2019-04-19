@@ -9,6 +9,9 @@
 
 #include "boost/asio.hpp"
 #include "boost/asio/spawn.hpp"
+#include "boost/asio/ssl.hpp"
+
+#include "boost/beast.hpp"
 
 #include "chat.pb.h"
 
@@ -22,28 +25,30 @@
 
 #include "boost/program_options.hpp"
 
+#include "optional_ssl_stream.hpp"
+
 using namespace tinyrpc;
 
 
 using tcp = boost::asio::ip::tcp;
 namespace websocket = boost::beast::websocket;
-
-using ws = websocket::stream<tcp::socket>;
+using ws = websocket::stream<tinychat::utility::optional_ssl_stream<tcp::socket> >;
 
 boost::asio::io_context ioc;
 
+uint64_t sess_id = 0;
+
 class rpc_session;
 
-std::unique_ptr<chatroom::Room<rpc_session> > room;
-std::unique_ptr<chatroom::ChatLog > chatlog;
-
-uint64_t sess_id = 0;
+static std::unique_ptr<chatroom::Room<rpc_session> > room;
+static std::unique_ptr<chatroom::ChatLog> chatlog;
 
 class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
 public:
+
 	rpc_session(ws&& s)
-	: ws_(std::move(s)),
+	: ws_(std::move(s)), 
 		rpc_stub_(ws_), 
 		id(sess_id++)
 	{
@@ -190,21 +195,34 @@ private:
 	std::optional<std::string> login_name;
 };
 
-void do_session(tcp::socket &socket, boost::asio::yield_context yield)
+void do_session(tcp::socket &socket, 
+	std::optional<boost::asio::ssl::context *> ssl_context, 
+	boost::asio::yield_context yield)
 {
 	try
 	{
 		boost::system::error_code ec;
 
-		ws s{std::move(socket)};
+		std::optional<ws> s;
+		
+		if (ssl_context)
+		{
+			s.emplace(tinychat::utility::tag_ssl, std::move(socket), *(ssl_context.value()));
+			s->next_layer().async_handshake(boost::asio::ssl::stream_base::server, yield[ec]);
+			if (ec)
+				throw tinychat::utility::boost_system_ec_exception(ec);
+		}
+		else {
+			s.emplace(tinychat::utility::tag_non_ssl, std::move(socket));
+		}
 
-		s.async_accept(yield[ec]);
+		s->async_accept(yield[ec]);
 		if (ec)
 			throw tinychat::utility::boost_system_ec_exception(ec);
 
-		s.binary(true);
+		s->binary(true);
 
-		auto ses = std::make_shared<rpc_session>(std::move(s));
+		auto ses = std::make_shared<rpc_session>(std::move(s.value()));
 		ses->run(yield);
 	}
 	catch (const std::exception &e) {
@@ -214,6 +232,7 @@ void do_session(tcp::socket &socket, boost::asio::yield_context yield)
 
 void do_listen(
 	tcp::endpoint endpoint,
+	std::optional<boost::asio::ssl::context *> ssl_context,
 	boost::asio::yield_context yield)
 {
 	boost::system::error_code ec;
@@ -246,10 +265,10 @@ void do_listen(
 		}
 		else
 		{
-			boost::asio::spawn(ioc, [socket{std::move(socket)}](
+			boost::asio::spawn(ioc, [socket{ std::move(socket) }, ssl_context](
 				boost::asio::yield_context yield) mutable
 			{
-				do_session(socket, yield);
+				do_session(socket, ssl_context, yield);
 			});
 		}
 	}
@@ -270,6 +289,9 @@ int main(int argc, char* argv[])
 			("db-redis", boost::program_options::value<std::string>(), "Connect to redis at specified host as database")
 			("redis-port", boost::program_options::value<unsigned short>()->default_value(6379), "Redis database port, use with --db-redis")
 			("db-dummy", "Connect to an internal fake database for testing")
+			("use-ssl", "use SSL encryption, thus use websocket over https")
+			("ssl-cert", boost::program_options::value<std::string>(), "cert file path, required with --use-ssl")
+			("ssl-key", boost::program_options::value<std::string>(), "private key file path, required with --use-ssl")
 			;
 		boost::program_options::variables_map vm;
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
@@ -290,6 +312,22 @@ int main(int argc, char* argv[])
 		auto const port = vm["port"].as<unsigned short>();
 
 		std::unique_ptr<chatroom::db::via_bredis::connection> db_conn;
+
+		std::unique_ptr<boost::asio::ssl::context> ssl_context;
+
+		if (vm.count("use-ssl"))
+		{
+			namespace ssl = boost::asio::ssl;
+			ssl_context = std::make_unique<ssl::context>(
+				ssl::context::method::tlsv12_server);
+			ssl_context->use_certificate_file(vm["ssl-cert"].as<std::string>(),
+				ssl::context::file_format::pem);
+			ssl_context->use_private_key_file(vm["ssl-key"].as<std::string>(),
+				ssl::context::file_format::pem);
+			ssl_context->set_verify_mode(ssl::context::verify_peer);
+			ssl_context->set_options(ssl::context::default_workarounds);
+			ssl_context->set_options(ssl::context::single_dh_use);
+		}
 
 		if (vm.count("db-redis"))
 		{
@@ -318,11 +356,13 @@ int main(int argc, char* argv[])
 			return EXIT_FAILURE;
 		}
 
-		boost::asio::spawn(ioc, [&address, &port](boost::asio::yield_context yield)
+		boost::asio::spawn(ioc, [&address, &port, &ssl_context](boost::asio::yield_context yield)
 		{
 			try
 			{
-				do_listen(tcp::endpoint{ address, port }, yield);
+				do_listen(tcp::endpoint{ address, port }, 
+					ssl_context ? &(*ssl_context) : 
+					(std::optional<boost::asio::ssl::context *>{}), yield);
 			}
 			catch (const std::exception &e)
 			{
