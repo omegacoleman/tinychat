@@ -4,6 +4,7 @@
 #include "boost/asio/spawn.hpp"
 #include "boost/thread.hpp"
 #include "boost/program_options.hpp"
+#include "boost/asio/ssl.hpp"
 
 #include <cstdlib>
 #include <functional>
@@ -18,6 +19,8 @@
 #include "boost_system_exception.hpp"
 #include "worded_exception.hpp"
 
+#include "optional_ssl_stream.hpp"
+
 boost::program_options::variables_map arg_vm;
 
 using namespace tinyrpc;
@@ -25,7 +28,8 @@ using namespace tinyrpc;
 using tcp = boost::asio::ip::tcp;
 namespace websocket = boost::beast::websocket;
 
-using ws = websocket::stream<tcp::socket>;
+using ws = websocket::stream<
+	tinychat::utility::optional_ssl_stream<tcp::socket> >;
 
 class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
@@ -157,6 +161,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 						std::cerr << "error occured during login. quit." << std::endl;
 						break;
 				}
+				ws_.close({}, ec);
 				return;
 			}
 
@@ -206,12 +211,20 @@ void do_session(
 		std::string const &host,
 		std::string const &port,
 		boost::asio::io_context &ioc,
+		std::optional<boost::asio::ssl::context *> ssl_context,
 		boost::asio::yield_context yield)
 {
 	boost::system::error_code ec;
 
 	tcp::resolver resolver{ioc};
-	ws s{ioc};
+	std::optional<ws> s;
+	if (ssl_context)
+	{
+		s.emplace(tinychat::utility::tag_ssl, ioc, *(ssl_context.value()));
+	} else
+	{
+		s.emplace(tinychat::utility::tag_non_ssl, ioc);
+	}
 
 	auto const results = resolver.async_resolve(host, port, yield[ec]);
 	if (ec)
@@ -219,22 +232,29 @@ void do_session(
 		throw tinychat::utility::boost_system_ec_exception(ec);
 	}
 
-	boost::asio::async_connect(s.next_layer(), results.begin(), results.end(),
+	boost::asio::async_connect(s->next_layer().next_layer(), results.begin(), results.end(),
 			yield[ec]);
 	if (ec)
 	{
 		throw tinychat::utility::boost_system_ec_exception(ec);
 	}
 
-	s.async_handshake(host, "/test", yield[ec]);
+	if (ssl_context)
+	{
+		s->next_layer().async_handshake(boost::asio::ssl::stream_base::client, yield[ec]);
+		if (ec)
+			throw tinychat::utility::boost_system_ec_exception(ec);
+	}
+
+	s->async_handshake(host, "/tinychat", yield[ec]);
 	if (ec)
 	{
 		throw tinychat::utility::boost_system_ec_exception(ec);
 	}
 
-	s.binary(true);
+	s->binary(true);
 
-	auto ses = std::make_shared<rpc_session>(std::move(s));
+	auto ses = std::make_shared<rpc_session>(std::move(s.value()));
 	boost::asio::spawn(ioc, [&ses] (boost::asio::yield_context yield)
 	{
 		try
@@ -260,6 +280,8 @@ int main(int argc, char **argv)
 			("port", boost::program_options::value<std::string>()->default_value("8000"), "Server port")
 			("heartbeat", boost::program_options::value<long long>()->default_value(30),
 				"interval to send heartbeat packet, 0 means no heartbeat")
+			("use-ssl", "use SSL encryption, thus use websocket over https")
+			("root-cert", boost::program_options::value<std::string>(), "root verify cert file path, required with --use-ssl")
 			;
 
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), arg_vm);
@@ -277,19 +299,33 @@ int main(int argc, char **argv)
 			return EXIT_FAILURE;
 		}
 
+		std::unique_ptr<boost::asio::ssl::context> ssl_context;
+
+		if (arg_vm.count("use-ssl"))
+		{
+			namespace ssl = boost::asio::ssl;
+			ssl_context = std::make_unique<ssl::context>(
+				ssl::context::method::tlsv12_client);
+			ssl_context->load_verify_file(arg_vm["root-cert"].as<std::string>());
+			ssl_context->set_verify_mode(ssl::context::verify_peer);
+			ssl_context->set_options(ssl::context::default_workarounds);
+			ssl_context->set_options(ssl::context::single_dh_use);
+		}
+
 		auto const host = argv[1];
 		auto const port = argv[2];
 
 		boost::asio::io_context ioc;
 
-		boost::asio::spawn(ioc, [&ioc](boost::asio::yield_context yield)
+		boost::asio::spawn(ioc, [&ioc, &ssl_context](boost::asio::yield_context yield)
 		{
 			try
 			{
 				do_session(
 					arg_vm["server"].as<std::string>(),
 					arg_vm["port"].as<std::string>(),
-					ioc,
+					ioc, ssl_context ? &(*ssl_context) :
+					(std::optional<boost::asio::ssl::context *>{}), 
 					yield
 				);
 			}
