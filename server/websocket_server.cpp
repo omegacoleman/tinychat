@@ -47,7 +47,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
 public:
 
-	rpc_session(ws&& s)
+	explicit rpc_session(ws&& s)
 	: ws_(std::move(s)), 
 		rpc_stub_(ws_), 
 		id(sess_id++)
@@ -57,7 +57,8 @@ public:
 
 	~rpc_session()
 	{
-		if(login_name) room->logout(login_name.value());
+		if(login_name)
+			room->logout(login_name.value());
 		std::cout << "rpc_session destructing #" << id << std::endl;
 	}
 
@@ -114,7 +115,11 @@ public:
 		} catch(const chatroom::DuplicateLoginException &e) {
 			reply.set_state(chat::LoginReply::duplicate_login);
 			std::cerr << e.what() << std::endl;
-		} catch(const std::exception &e) {
+		} catch (const chatroom::UserBannedException &e) {
+			reply.set_state(chat::LoginReply::banned);
+			std::cerr << e.what() << std::endl;
+		}
+		catch(const std::exception &e) {
 			reply.set_state(chat::LoginReply::error);
 			std::cerr << e.what() << std::endl;
 		}
@@ -322,6 +327,7 @@ int main(int argc, char* argv[])
 		}
 
 		room = std::make_unique<chatroom::Room<rpc_session> >();
+		
 		chatlog = std::make_unique<chatroom::ChatLog>(
 			vm["chatlog-limit"].as<size_t>(), 
 			vm["chatlog-checkin"].as<size_t>(), 
@@ -354,19 +360,35 @@ int main(int argc, char* argv[])
 				ioc,
 				vm["db-redis"].as<std::string>(),
 				vm["redis-port"].as<unsigned short>());
-			db_conn->reload_users_sync();
-			auto user_auth_it_pair = db_conn->users();
-			room->load(user_auth_it_pair.first, user_auth_it_pair.second);
-			db_conn->auto_refresh_users([](const std::string &name, const std::string &auth) {
-				room->update_user(name, auth);
-			});
-			chatlog->auto_checkin([&db_conn](chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback) {
-				db_conn->checkin_log(it, end, done_callback);
-			});
+			
+			
+			auto users = db_conn->fetch_users();
+			room->load_user(users.begin(), users.end());
+			auto banned_users = db_conn->fetch_banned_users();
+			room->load_banned_user(banned_users.begin(),banned_users.end());
+			
+			db_conn->auto_refresh_users(
+				[](const std::string &name, const std::string &auth)
+				{
+					room->update_user(name, auth);
+				});
+			
+			db_conn->auto_refresh_banned_users(
+				[](std::string user)
+				{
+					room->ban(user);
+				});
+			
+			chatlog->auto_checkin(
+				[&db_conn](chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback)
+				{
+					db_conn->checkin_log(it, end, done_callback);
+				});
+			
 		}
 		else if (vm.count("db-dummy"))
 		{
-			room->load(chatroom::db::dummy::dummy_user_auth.begin(), chatroom::db::dummy::dummy_user_auth.end());
+			room->load_user(chatroom::db::dummy::dummy_user_auth.begin(), chatroom::db::dummy::dummy_user_auth.end());
 			chatlog->auto_checkin(chatroom::db::dummy::dummy_db_checkin);
 		}
 		else

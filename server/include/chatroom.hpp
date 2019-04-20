@@ -18,6 +18,7 @@
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
+#include <unordered_set>
 
 namespace chatroom
 {
@@ -117,11 +118,11 @@ namespace chatroom
 		void load_from_db(message_iterator it, message_iterator end)
 		{
 			const size_t to_load_max = this->size_limit / 2;
-			for(; it != end; ++it)
+			for (; it != end; ++it)
 			{
 				this->logs.push_front(*it);
 				this->checkin_i++;
-				if(this->logs.size() >= to_load_max)
+				if (this->logs.size() >= to_load_max)
 				{
 					return;
 				}
@@ -236,7 +237,7 @@ namespace chatroom
 
 		bool deliver_message(std::shared_ptr<chatroom::Message> message)
 		{
-			if(! this->login_info.has_value())
+			if (!this->login_info.has_value())
 			{
 				return false;
 			}
@@ -267,12 +268,12 @@ namespace chatroom
 			uint64_t login_unix_time;
 			std::string token;
 			boost::uuids::uuid token_uuid;
-			session_type& session;
-
-			bool verify(const std::string &token, const session_type& session) const
+			session_type &session;
+			
+			bool verify(const std::string &token, const session_type &session) const
 			{
 				return (this->token == token) &&
-				(std::addressof(this->session) == std::addressof(session));
+					(std::addressof(this->session) == std::addressof(session));
 			}
 		};
 		std::string name;
@@ -283,79 +284,120 @@ namespace chatroom
 	CHAT_EXCEPTION_CLASS(UserNotFoundException, "user not found");
 	CHAT_EXCEPTION_CLASS(AuthenticateFailedException, "authenticate failed");
 	CHAT_EXCEPTION_CLASS(DuplicateLoginException, "duplicate login");
+	CHAT_EXCEPTION_CLASS(UserBannedException, "user got banned");
 
 	template<typename session_type> class Room
 	{
 	public:
 		template <typename UserAuthPairIterator>
-		void load(UserAuthPairIterator it, UserAuthPairIterator end)
-		{
-			for (; it != end; ++it)
+			void load_user(UserAuthPairIterator begin, UserAuthPairIterator end)
 			{
-				this->members.insert(std::make_pair(it->first, Person<session_type>(it->first, it->second)));
+				std::for_each(
+					begin, end,
+					[this](const auto &AuthPair)
+					{
+						members.emplace(AuthPair.first, Person<session_type>(AuthPair.first, AuthPair.second));
+					});
 			}
-		}
-
-		std::string login(const std::string &name, const std::string &auth, session_type &session)
+		
+		template <typename BannedUserIterator>
+			void load_banned_user(BannedUserIterator begin,BannedUserIterator end)
+			{
+				std::for_each(
+					begin, end,
+					[this](const auto &user)
+					{
+						banned_members.emplace(user);
+					});
+			}
+				
+				std::string
+		login(const std::string &name, const std::string &auth, session_type &session)
 		{
 			if(members.count(name) == 0)
 			{
 				throw UserNotFoundException();
 			}
-			if(! members.at(name).authenticate(name, auth))
+			
+			if (banned_members.count(name))
+			{
+				throw UserBannedException();
+			}
+			
+			if (! members.at(name).authenticate(name, auth))
 			{
 				throw AuthenticateFailedException();
 			}
-			if(members.at(name).login_info.has_value())
+			
+			if (members.at(name).login_info.has_value())
 			{
 				throw DuplicateLoginException();
 			}
 			members.at(name).login_info.emplace(name, session);
 			return members.at(name).login_info->token;
 		}
-
+		
 		void logout(const std::string &name)
 		{
-			members.at(name).login_info.reset();
+			if (members.count(name))
+			{
+				members.at(name).login_info.reset();
+			}
 		}
-
+		
+		void ban(const std::string &name)
+		{
+			if (members.count(name))
+			{
+				banned_members.insert(name);
+				members.at(name).login_info.reset();
+			}
+		}
+		
 		void update_user(const std::string &name, const std::string &auth)
 		{
-			if (this->members.count(name))
+			if (members.count(name))
 			{
-				this->members.at(name).auth = auth;
-			}
-			else {
-				this->members.insert(std::make_pair(name, Person<session_type>(name, auth)));
+				members.at(name).auth = auth;
+			} else
+			{
+				members.emplace(name, Person<session_type>(name, auth));
 			}
 		}
-
+		
 		bool verify(const std::string &name, const std::string &token, session_type &session)
 		{
-			if(members.count(name) == 0)
+			if (members.count(name) == 0)
 			{
 				return false;
 			}
 			return members.at(name).login_info.has_value() &&
-			(members.at(name).login_info->verify(token, session));
+				(members.at(name).login_info->verify(token, session));
 		}
-
+		
 		void send_message(const Message &message)
 		{
 			auto shared_message = std::make_shared<Message>(Message(message));
-			for(auto it = members.begin(); it != members.end(); ++it)
-			{
-				try
+			std::for_each(
+				members.begin(), members.end(),
+				[this, shared_message, &message](auto &it)
 				{
-					it->second.deliver_message(shared_message);
-				} catch (const std::exception &e)
-				{
-					std::cerr << "Room : error occurred while delivering message " << message.id << " to " << it->first << " : " << std::endl;
-					std::cerr << e.what() << std::endl;
-				}
-			}
+					try
+					{
+						it.second.deliver_message(shared_message);
+					} catch (const std::exception &e)
+					{
+						std::cerr << "Room : error occurred while delivering message "
+						          << message.id
+						          << " to "
+						          << it.first
+						          << " : "
+						          << std::endl;
+						std::cerr << e.what() << std::endl;
+					}
+				});
 		}
-
+		
 		template <typename HookedChatLog>
 		void send_and_log_message(const Message &message, HookedChatLog &chat_log)
 		{
@@ -364,6 +406,7 @@ namespace chatroom
 		}
 
 		std::map<std::string, Person<session_type> > members;
+		std::unordered_set<std::string> banned_members;
 	};
 }
 

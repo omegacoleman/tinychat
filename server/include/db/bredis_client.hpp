@@ -23,6 +23,7 @@ namespace chatroom
 			using result_iterator = typename bredis::to_iterator<boost::asio::streambuf>::iterator_t;
 			using user_update_handle = std::function<void(const std::string &, const std::string &) >;
 			using subscription_handler = std::function<void(boost::asio::yield_context yield)>;
+			using user_ban_handler = std::function<void(const std::string &)>;
 
 			class connection
 			{
@@ -40,14 +41,16 @@ namespace chatroom
 					this->s_subscription->connect(end);
 					this->c_subscription = std::make_unique<bredis::Connection<boost::asio::ip::tcp::socket &> >(*this->s_subscription);
 
-					boost::asio::spawn(ioc, [this](boost::asio::yield_context yield)
-					mutable {
+					boost::asio::spawn(ioc, [this](boost::asio::yield_context yield) mutable
+					{
 						try
 						{
 							this->subscription_proc(yield);
 						}
-						catch (const std::exception &e) {
-							std::cerr << "bredis_client.hpp : subscription failed : " << e.what() << ", auto-updating features may fail." << std::endl;
+						catch (const std::exception &e)
+						{
+							std::cerr << "bredis_client.hpp : subscription failed : " << e.what() << ", auto-updating features may fail."
+								<< std::endl;
 						}
 					});
 				}
@@ -55,12 +58,9 @@ namespace chatroom
 				// this thing is good, could be extracted as an util class someday.
 				void subscription_proc(boost::asio::yield_context yield)
 				{
-					using parse_result_t = bredis::parse_result_mapper_t<
-						result_iterator,
-						bredis::parsing_policy::keep_result>;
-					using read_callback_t = std::function<void(
-						const boost::system::error_code &error_code, 
-						parse_result_t &&r)>;
+
+					using parse_result_t = bredis::parse_result_mapper_t<result_iterator, bredis::parsing_policy::keep_result>;
+					using read_callback_t = std::function<void(const boost::system::error_code &error_code, parse_result_t &&r)>;
 
 					boost::asio::streambuf rx_buff;
 					boost::system::error_code ec;
@@ -84,69 +84,71 @@ namespace chatroom
 							throw tinychat::utility::boost_system_ec_exception(ec);
 						}
 						std::cout << "bredis_client.hpp : subscription got something" << std::endl;
-						auto extract = boost::apply_visitor(
-							bredis::extractor<result_iterator>(),
-							parse_result.result);
+						auto extract = boost::apply_visitor(bredis::extractor<result_iterator>(), parse_result.result);
 						rx_buff.consume(parse_result.consumed);
 						auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
-						if (reply_arr.elements.size() != 3) continue;
+						if (reply_arr.elements.size() != 3)
+							continue;
 						auto &str_message = boost::get<bredis::extracts::string_t>(reply_arr.elements[0]);
 						auto &str_tinychat = boost::get<bredis::extracts::string_t>(reply_arr.elements[1]);
-						if (str_message.str != "message") continue;
-						if (str_tinychat.str != "tinychat") continue;
+						if (str_message.str != "message" || str_tinychat.str != "tinychat")
+							continue;
 						auto &str_target = boost::get<bredis::extracts::string_t>(reply_arr.elements[2]);
-						for (auto it = this->subcription_binds.begin(); it != this->subcription_binds.end(); ++it)
+						std::for_each(subcription_callbacks.begin(), subcription_callbacks.end(), [&](auto &it)
 						{
-							if (it->first == str_target.str)
+							if (it.first == str_target.str)
 							{
 								try
 								{
-									it->second(yield);
+									it.second(yield);
 								}
-								catch (const std::exception &e) {
+								catch (const std::exception &e)
+								{
 									std::cerr << "bredis_client.hpp : subscription mission failed -- " << e.what() << std::endl;
 								}
+
 							}
-						}
+						});
 					}
 				}
 
-				void reload_users_sync()
-				{
-					if (occupied) throw tinychat::utility::worded_exception("already occupied");
-					occupied = true;
-					this->user_auth_map.clear();
 
-					boost::asio::streambuf rx_buff;
-					this->c->write(bredis::single_command_t{ "HGETALL", "users" });
-					auto parse_result = this->c->read(rx_buff);
-					auto extract = boost::apply_visitor(
-						bredis::extractor<result_iterator>(),
-						parse_result.result);
-					rx_buff.consume(parse_result.consumed);
-					auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
-					for (auto it = reply_arr.elements.begin(); it != reply_arr.elements.end();)
-					{
-						auto &user_str = boost::get<bredis::extracts::string_t>(*it);
-						++it;
-						auto &auth_str = boost::get<bredis::extracts::string_t>(*it);
-						++it;
-						this->user_auth_map.insert(std::make_pair(user_str.str, auth_str.str));
-						std::cout << "bredis_client.hpp : loading user : " << user_str.str << std::endl;
-					}
-					occupied = false;
-				}
 
 				void subscription_bind(const std::string &on_str, subscription_handler handler)
 				{
-					this->subcription_binds[on_str] = handler;
+					subcription_callbacks[on_str] = handler;
 				}
 
 				void auto_refresh_users(user_update_handle user_update)
 				{
-					this->subscription_bind("user_update", [user_update, this](boost::asio::yield_context yield)
+					subscription_bind(
+						"user_update",
+						[user_update, this](boost::asio::yield_context yield)
 					{
-						this->refresh_users(user_update, yield);
+						refresh_users(user_update, yield);
+					});
+				}
+
+				void auto_refresh_banned_users(user_ban_handler user_ban)
+				{
+					subscription_bind("user_ban", std::bind(&connection::ban_users, this, user_ban, std::placeholders::_1));
+				}
+
+				void ban_users(user_ban_handler user_ban, boost::asio::yield_context yield)
+				{
+					boost::asio::streambuf tx_buff, rx_buff;
+					auto consumed = this->c->async_write(tx_buff, bredis::single_command_t{ "SMEMBERS", "user:banned" }, yield);
+					tx_buff.consume(consumed);
+					auto parse_result = this->c->async_read(rx_buff, yield);
+					auto extract = boost::apply_visitor(bredis::extractor<result_iterator>(), parse_result.result);
+					rx_buff.consume(parse_result.consumed);
+					auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
+
+					std::for_each(reply_arr.elements.begin(), reply_arr.elements.end(),
+						[this, &user_ban](auto &it)
+					{
+						auto &user = boost::get<bredis::extracts::string_t>(it);
+						user_ban(user.str);
 					});
 				}
 
@@ -191,9 +193,45 @@ namespace chatroom
 
 				using user_auth_pair_iterator = std::map<std::string, std::string>::const_iterator;
 
-				std::pair<user_auth_pair_iterator, user_auth_pair_iterator> users()
+				std::map<std::string, std::string> fetch_users()
 				{
-					return std::make_pair(this->user_auth_map.cbegin(), this->user_auth_map.cend());
+					boost::asio::streambuf rx_buff;
+					this->c->write(bredis::single_command_t{ "HGETALL", "users" });
+					auto parse_result = this->c->read(rx_buff);
+					auto extract = boost::apply_visitor(
+						bredis::extractor<result_iterator>(),
+						parse_result.result);
+					rx_buff.consume(parse_result.consumed);
+					auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
+					for (auto it = reply_arr.elements.begin(); it != reply_arr.elements.end();)
+					{
+						auto &user_str = boost::get<bredis::extracts::string_t>(*it);
+						++it;
+						auto &auth_str = boost::get<bredis::extracts::string_t>(*it);
+						++it;
+						this->user_auth_map.insert(std::make_pair(user_str.str, auth_str.str));
+						std::cout << "bredis_client.hpp : loading user : " << user_str.str << std::endl;
+					}
+					return user_auth_map;
+				}
+
+				std::unordered_set<std::string> fetch_banned_users()
+				{
+					boost::asio::streambuf rx_buff;
+					this->c->write(bredis::single_command_t{ "SMEMBERS", "user:banned" });
+					auto parse_result = this->c->read(rx_buff);
+					auto extract = boost::apply_visitor(bredis::extractor<result_iterator>(), parse_result.result);
+					rx_buff.consume(parse_result.consumed);
+					auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
+					std::unordered_set<std::string> banned_users;
+					std::for_each(reply_arr.elements.begin(), reply_arr.elements.end(),
+						[&banned_users](auto &it)
+					{
+						auto banned_user = boost::get<bredis::extracts::string_t>(it).str;
+						std::cout << "bredis_client.hpp : loading banned user : " << banned_user << std::endl;
+						banned_users.emplace(std::move(banned_user));
+					});
+					return banned_users;
 				}
 
 				void checkin_log_proc(chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback, boost::asio::yield_context yield)
@@ -223,20 +261,23 @@ namespace chatroom
 						std::string s_unix_time = std::to_string(it->unix_time);
 						container.push_back(bredis::single_command_t{ "set", key_unix_time, s_unix_time });
 
-						std::vector<std::string> log_by_unix_time_cmd;
-						log_by_unix_time_cmd.push_back("zadd");
-						log_by_unix_time_cmd.push_back("log_by_unix_time");
-						log_by_unix_time_cmd.push_back(std::to_string(it->unix_time));
-						log_by_unix_time_cmd.push_back(it->id);
+						std::vector<std::string> log_by_unix_time_cmd
+						{
+							"zadd",
+							"log_by_unix_time",
+							std::to_string(it->unix_time),
+							it->id
+						};
+
 						container.push_back(bredis::single_command_t(log_by_unix_time_cmd.begin(), log_by_unix_time_cmd.end()));
-						
+
 						std::size_t consumed = this->c->async_write(tx_buff, container, yield[ec]);
 						if (ec)
 						{
 							throw tinychat::utility::boost_system_ec_exception(ec);
 						}
 						tx_buff.consume(consumed);
-						
+
 						auto parse_result = this->c->async_read(rx_buff, yield[ec], container.size());
 						if (ec)
 						{
@@ -273,7 +314,7 @@ namespace chatroom
 				void checkin_log(chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback)
 				{
 					boost::asio::spawn(this->ioc, [it, end, done_callback, this](boost::asio::yield_context yield)
-					mutable {
+						mutable {
 						try
 						{
 							this->checkin_log_proc(it, end, done_callback, yield);
@@ -295,7 +336,7 @@ namespace chatroom
 
 				std::unique_ptr<boost::asio::ip::tcp::socket> s_subscription;
 				std::unique_ptr<bredis::Connection<boost::asio::ip::tcp::socket &> > c_subscription;
-				std::map<std::string, std::function<void(boost::asio::yield_context yield)> > subcription_binds;
+				std::map<std::string, std::function<void(boost::asio::yield_context yield)> > subcription_callbacks;
 
 				std::map<std::string, std::string> user_auth_map;
 			};

@@ -157,6 +157,9 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 						std::cerr << "this account is already online. contact the admin."
 							<< std::endl;
 						break;
+					case (chat::LoginReply::banned):
+						std::cerr << "you got banned."
+						          << std::endl;
 					default:
 						std::cerr << "error occured during login. quit." << std::endl;
 						break;

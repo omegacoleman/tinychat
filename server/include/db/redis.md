@@ -17,6 +17,10 @@ sample:
 6) "88888"
 ```
 
+## key : user:banned
+
+A set, with all users banned from logging in.
+
 ## key : log_by_unix_time
 
 A sorted set, with message unix_time as scores & message id as items.
@@ -41,6 +45,10 @@ sample:
 ### publish message : "user_update"
 
 Do this after you make some changes to "users" key. Currently only user addition is supported.
+
+### publish message : "user_ban"
+
+Do this after you banned someone. Currently the ban is permanent.
 
 ## message logs
 
