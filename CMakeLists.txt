@@ -2,11 +2,6 @@
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 project(tinyrpc)
 
-set(Boost_ARCHITECTURE -x64)
-set(Boost_COMPILER -mgw81)
-set(Boost_USE_STATIC_RUNTIME ON)
-set(Boost_USE_STATIC_LIBS ON)
-
 find_package(Boost REQUIRED COMPONENTS coroutine context thread program_options)
 find_package(Protobuf REQUIRED)
 find_package(Threads)
@@ -17,19 +12,16 @@ include(CheckLibraryExists)
 
 if(WIN32)
 	add_definitions(-DTINYCHAT_WIN)
-	set(WIN32_EXTRA_LIBRARIES ws2_32 wsock32)
+	set(WIN32_EXTRA_LIBRARIES ws2_32 wsock32 bcrypt)
 elseif(UNIX)
 	set(WIN32_EXTRA_LIBRARIES )
 	add_definitions(-DTINYCHAT_UNIX)
 else()
-	message(FATAL "unsupported platform")
+	message(FATAL_ERROR "unsupported platform")
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/utility)
 include_directories(${OPENSSL_INCLUDE_DIR})
-if(MSVC)
-	set(WIN32_EXTRA_LIBRARIES ${WIN32_EXTRA_LIBRARIES} bcrypt)
-endif()
 
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${PROTOBUF_INCLUDE_DIRS})
