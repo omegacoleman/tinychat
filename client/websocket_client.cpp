@@ -171,6 +171,31 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 			if (hb_interval > 0)
 				start_timed_heartbeat(ioc,name,token,std::chrono::seconds(hb_interval));
 			std::cout << "your token : " << token << std::endl;
+
+
+			chat::GetLogRequest gl_req;
+			gl_req.set_name(name);
+			gl_req.set_token(token);
+			chat::GetLogReply gl_reply;
+			rpc_stub_.async_call(gl_req, gl_reply, yield[ec]);
+			if (ec)
+			{
+				throw tinychat::utility::boost_system_ec_exception(ec);
+			}
+			if (gl_reply.chat_messages_size())
+			{
+				std::cout << "they said these before you join : " << std::endl;
+				std::cout << "------------------" << std::endl;
+				for (int i = 0; i < gl_reply.chat_messages_size(); i++)
+				{
+					auto m = gl_reply.chat_messages(i);
+					std::cout << "|| " << m.sender() << " : " << m.text() << std::endl;
+				}
+				std::cout << "------------------" << std::endl;
+			}
+
+
+
 			std::cout << "type to speak" << std::endl;
 			std::cout << "------------------" << std::endl;
 

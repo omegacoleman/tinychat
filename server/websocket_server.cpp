@@ -71,6 +71,7 @@ public:
 		REG_SVC(chat::LoginRequest, chat::LoginReply, login_service);
 		REG_SVC(chat::VerifyRequest, chat::VerifyReply, verify_service);
 		REG_SVC(chat::ChatSendRequest, chat::ChatSendReply, chat_send_service);
+		REG_SVC(chat::GetLogRequest, chat::GetLogReply, get_log_service);
 
 		boost::beast::multi_buffer buf;
 		boost::system::error_code ec;
@@ -148,6 +149,24 @@ public:
 			std::cerr << e.what() << std::endl;
 			reply.set_result(chat::ChatSendReply::error);
 			return;
+		}
+	}
+
+	void get_log_service(const chat::GetLogRequest &req, chat::GetLogReply &reply)
+	{
+		if (!room->verify(req.name(), req.token(), *this))
+		{
+			std::cerr << "name " << req.name() << " tried to get log but fails the token valification" << std::endl;
+			return;
+		}
+		auto iter_pair = chatlog->log_revise();
+		for (auto it = iter_pair.first; it != iter_pair.second; ++it)
+		{
+			chat::ChatMessage *m = reply.add_chat_messages();
+			m->set_id(it->id);
+			m->set_sender(it->sender);
+			m->set_text(it->text);
+			m->set_unix_time(it->unix_time);
 		}
 	}
 
