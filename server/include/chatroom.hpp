@@ -25,7 +25,7 @@ namespace chatroom
 	class ChatException : public std::exception
 	{
 	public:
-		virtual const char* what() const noexcept
+		const char* what() const noexcept override
 		{
 			return CHAT_EXCEPTION_STRING("unknown");
 		}
@@ -44,9 +44,9 @@ namespace chatroom
 	{
 	public:
 		Message(const std::string &sender, const std::string &text, uint64_t unix_time = 0)
-		: sender(sender), text(text),
-		unix_time(unix_time ? unix_time : std::time(NULL)),
-		id_uuid(boost::uuids::random_generator()()),
+			: sender(sender), text(text),
+			unix_time(unix_time ? unix_time : std::time(NULL)),
+			id_uuid(boost::uuids::random_generator()()),
 		id()
 		{
 			this->id = boost::uuids::to_string(this->id_uuid);
@@ -225,7 +225,7 @@ namespace chatroom
 	{
 	public:
 		Person(const std::string &name, const std::string &auth)
-		:name(name), auth(auth), login_info({})
+			:name(name), auth(auth), login_info({})
 		{
 		}
 
@@ -350,21 +350,21 @@ namespace chatroom
 					it->second.deliver_message(shared_message);
 				} catch (const std::exception &e)
 				{
-					std::cerr << "Room : error occured while delivering message " << message.id << " to " << it->first << " : " << std::endl;
+					std::cerr << "Room : error occurred while delivering message " << message.id << " to " << it->first << " : " << std::endl;
 					std::cerr << e.what() << std::endl;
 				}
 			}
 		}
 
 		template <typename HookedChatLog>
-		void send_and_log_message(const Message &message, HookedChatLog &chatlog)
+		void send_and_log_message(const Message &message, HookedChatLog &chat_log)
 		{
 			this->send_message(message);
-			chatlog.add(message);
+			chat_log.add(message);
 		}
 
 		std::map<std::string, Person<session_type> > members;
 	};
-};
+}
 
 

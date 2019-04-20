@@ -229,14 +229,14 @@ namespace chatroom
 						log_by_unix_time_cmd.push_back(std::to_string(it->unix_time));
 						log_by_unix_time_cmd.push_back(it->id);
 						container.push_back(bredis::single_command_t(log_by_unix_time_cmd.begin(), log_by_unix_time_cmd.end()));
-
+						
 						std::size_t consumed = this->c->async_write(tx_buff, container, yield[ec]);
 						if (ec)
 						{
 							throw tinychat::utility::boost_system_ec_exception(ec);
 						}
 						tx_buff.consume(consumed);
-
+						
 						auto parse_result = this->c->async_read(rx_buff, yield[ec], container.size());
 						if (ec)
 						{
