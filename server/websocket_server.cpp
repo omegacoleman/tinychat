@@ -212,6 +212,11 @@ public:
 		return login_name.value_or("#" + std::to_string(id));
 	}
 
+	void close()
+	{
+		ws_.lowest_layer().cancel();
+	}
+
 private:
 	uint64_t id;
 	ws ws_;

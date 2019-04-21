@@ -350,6 +350,7 @@ namespace chatroom
 			if (members.count(name))
 			{
 				banned_members.insert(name);
+				members.at(name).login_info->session.close();
 				members.at(name).login_info.reset();
 			}
 		}
