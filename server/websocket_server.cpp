@@ -147,7 +147,7 @@ public:
 		}
 		try
 		{
-			chatroom::Message m(req.name(), req.text());
+			chatroom::Message m(room->room_id, req.name(), req.text());
 			room->send_and_log_message(m, *chatlog);
 			std::cout << "|| " << req.name() << " : " << req.text() << std::endl;
 		} catch(const std::exception &e) {
@@ -321,6 +321,8 @@ int main(int argc, char* argv[])
 			("use-ssl", "use SSL encryption, thus use websocket over https")
 			("ssl-cert", boost::program_options::value<std::string>(), "cert file path, required with --use-ssl")
 			("ssl-key", boost::program_options::value<std::string>(), "private key file path, required with --use-ssl")
+			("room-id", boost::program_options::value<std::string>()->default_value("tc"), "chatroom unique id, change it to different"
+				" only when you have parallel tinychat processes running on same db")
 			;
 		boost::program_options::variables_map vm;
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
@@ -331,7 +333,7 @@ int main(int argc, char* argv[])
 			return EXIT_FAILURE;
 		}
 
-		room = std::make_unique<chatroom::Room<rpc_session> >();
+		room = std::make_unique<chatroom::Room<rpc_session> >(vm["room-id"].as<std::string>());
 		
 		chatlog = std::make_unique<chatroom::ChatLog>(
 			vm["chatlog-limit"].as<size_t>(), 

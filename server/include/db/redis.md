@@ -21,7 +21,9 @@ sample:
 
 A set, with all users banned from logging in.
 
-## key : log_by_unix_time
+## key : tc:log_by_unix_time
+
+'tc:' may be replaced if you set other --room-id
 
 A sorted set, with message unix_time as scores & message id as items.
 
@@ -40,7 +42,7 @@ sample:
 ...
 ```
 
-## subscription : tinyrpc
+## subscription : tinychat
 
 ### publish message : "user_update"
 
@@ -58,12 +60,16 @@ There's one exception : the message text itself, is stored with key "id" with no
 
 like:
 ```
-"6cbcc2a6-8d9c-4957-aaaf-fc7c41bf7197" -> "hello!"
-"6cbcc2a6-8d9c-4957-aaaf-fc7c41bf7197:sender" -> "youcai"
-"6cbcc2a6-8d9c-4957-aaaf-fc7c41bf7197:unix_time" -> "1554998831"
+"tc:6cbcc2a6-8d9c-4957-aaaf-fc7c41bf7197" -> "hello!"
+"tc:6cbcc2a6-8d9c-4957-aaaf-fc7c41bf7197:sender" -> "youcai"
+"tc:6cbcc2a6-8d9c-4957-aaaf-fc7c41bf7197:unix_time" -> "1554998831"
 ```
 
-Important notice : currently we just let id be UUID, future we may reshape it to include something to indentify the
-chatroom. This is for multi process to share the same DB.
+its id starts with room id and a ':'.
 
+## Question : why some fields contains room id, while others not?
+
+The recommended usage of tinychat is to run parallel processes hosting different chatrooms.
+
+While their messages differ, their user informations could be shared, so fields about users won't contain room id.
 

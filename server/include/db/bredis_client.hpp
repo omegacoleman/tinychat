@@ -136,10 +136,15 @@ namespace chatroom
 
 				void ban_users(user_ban_handler user_ban, boost::asio::yield_context yield)
 				{
+					boost::system::error_code ec;
 					boost::asio::streambuf tx_buff, rx_buff;
 					auto consumed = this->c->async_write(tx_buff, bredis::single_command_t{ "SMEMBERS", "user:banned" }, yield);
 					tx_buff.consume(consumed);
-					auto parse_result = this->c->async_read(rx_buff, yield);
+					auto parse_result = this->c->async_read(rx_buff, yield[ec]);
+					if (ec)
+					{
+						throw tinychat::utility::boost_system_ec_exception(ec);
+					}
 					auto extract = boost::apply_visitor(bredis::extractor<result_iterator>(), parse_result.result);
 					rx_buff.consume(parse_result.consumed);
 					auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
@@ -264,7 +269,7 @@ namespace chatroom
 						std::vector<std::string> log_by_unix_time_cmd
 						{
 							"zadd",
-							"log_by_unix_time",
+							it->room_id + ":" + "log_by_unix_time",
 							std::to_string(it->unix_time),
 							it->id
 						};

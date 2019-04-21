@@ -44,13 +44,14 @@ namespace chatroom
 	class Message : public std::enable_shared_from_this<Message>
 	{
 	public:
-		Message(const std::string &sender, const std::string &text, uint64_t unix_time = 0)
+
+		Message(const std::string &room_id, const std::string &sender, const std::string &text, uint64_t unix_time = 0)
 			: sender(sender), text(text),
 			unix_time(unix_time ? unix_time : std::time(NULL)),
-			id_uuid(boost::uuids::random_generator()()),
-		id()
+			id_uuid(boost::uuids::random_generator()()), 
+			room_id(room_id), 
+			id(room_id + ":" + boost::uuids::to_string(this->id_uuid))
 		{
-			this->id = boost::uuids::to_string(this->id_uuid);
 		}
 
 		bool operator==(const Message &&m) const &&
@@ -68,12 +69,11 @@ namespace chatroom
 		uint64_t unix_time;
 		boost::uuids::uuid id_uuid;
 		std::string id;
+		std::string room_id;
 	};
 
 	CHAT_EXCEPTION_CLASS(CheckInTooMuchException, "ChatLog : checkin() more log than could");
 	CHAT_EXCEPTION_CLASS(ReleaseTooMuchException, "ChatLog : release() more log than could");
-
-
 	CHAT_EXCEPTION_CLASS(SizeUndesiredException, 
 		"ChatLog : checkin_bundle_size shall be under size_limit, and "
 		"log_revise_size shall be under floor(size_limit / 2)");
@@ -289,6 +289,10 @@ namespace chatroom
 	template<typename session_type> class Room
 	{
 	public:
+		Room(const std::string &room_id)
+			: room_id(room_id)
+		{}
+
 		template <typename UserAuthPairIterator>
 			void load_user(UserAuthPairIterator begin, UserAuthPairIterator end)
 			{
@@ -408,6 +412,7 @@ namespace chatroom
 
 		std::map<std::string, Person<session_type> > members;
 		std::unordered_set<std::string> banned_members;
+		std::string room_id;
 	};
 }
 
