@@ -139,7 +139,6 @@ namespace tinychat
 				}
 			}
 
-			template <typename lowest_layer_type>
 			lowest_layer_type&
 				lowest_layer()
 			{
