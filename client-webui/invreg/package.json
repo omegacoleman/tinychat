@@ -1,0 +1,10 @@
+{
+  "name": "tinychat-invreg",
+  "version": "1.0.0rc1",
+  "description": "official user register system for tinychat, register & invitation link function",
+  "main": "server.js",
+  "repository": "https://github.com/omegacoleman/tinychat",
+  "author": "Stephen Coleman <omegacoleman@gmail.com>",
+  "license": "BSL-1.0",
+  "private": true
+}
