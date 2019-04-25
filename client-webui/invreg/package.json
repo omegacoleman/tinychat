@@ -6,5 +6,12 @@
   "repository": "https://github.com/omegacoleman/tinychat",
   "author": "Stephen Coleman <omegacoleman@gmail.com>",
   "license": "BSL-1.0",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "ioredis": "^4.9.0",
+    "koa": "^2.7.0",
+    "koa-bodyparser": "^4.2.1",
+    "koa-router": "^7.4.0",
+    "log4js": "^4.1.0"
+  }
 }

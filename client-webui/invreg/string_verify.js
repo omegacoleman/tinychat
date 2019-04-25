@@ -1,3 +1,4 @@
+const logger = require("log4js").getLogger()
 
 let restrict_funcs = {
     length_range(target_string, params)
@@ -149,12 +150,16 @@ let verify = function (target_string, options)
                 }
             }
         } else {
-            // omitted(restrict)
+            logger.error("string verify : unsupported restrict " + restrict)
         }
     }
     return { good : true }
 }
 
+module.exports.restrict_funcs = restrict_funcs
+module.exports.verify = verify
+
+/**
 console.log(verify(process.argv[2] || "",
     {
         "not_empty": {},
@@ -173,5 +178,5 @@ console.log(verify(process.argv[2] || "",
         }
     }
 ))
-
+**/
 
