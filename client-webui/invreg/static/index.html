@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>TinyChat Register Service</title>
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+	<div class="container">
+		<div class="row">
+			<div class="col-md-3"></div>
+			<div class="col-md-6">
+				<h1 class="text-center">Create an account</h1>
+				<div class="form-group">
+					<label for="user_input">User</label>
+					<input class="form-control" id="user_input" placeholder="Identical user name">
+				</div>
+				<div class="form-group">
+					<label for="password_input">Password</label>
+					<input type="password" class="form-control" id="password_input" placeholder="Your password for login">
+				</div>
+				<div class="alert alert-danger" style="display:none" id="err_msg_alert" role="alert">
+					<span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+					<span id="err_msg_span"></span>
+				</div>
+				<p class="text-center">
+					<button class="btn btn-success" onclick="register()">
+						<span class="glyphicon glyphicon-hand-right" aria-hidden="true"></span>
+						GO
+						<span class="glyphicon glyphicon-hand-left" aria-hidden="true"></span>
+					</button>
+				</p>
+			</div>
+		</div>
+	</div>
+
+	<script src="js/jquery.min.js"></script>
+	<script src="js/bootstrap.min.js"></script>
+	<script type="text/javascript">
+		function register()
+		{
+			$.post("/register", {
+				user: $("#user_input").val(), 
+				password: $("#password_input").val()
+			}, function (data, status) {
+				console.log(data)
+				if (data.ok)
+				{
+					location.href = "success.html";
+				} else {
+					$("#err_msg_span").html(data.reason);
+					$("#err_msg_alert").show(true);
+				}
+			})
+		}
+	</script>
+</body>
+</html>

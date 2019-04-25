@@ -1,6 +1,7 @@
 const Koa = require("koa")
 const Router = require("koa-router")
 const BodyParser = require("koa-bodyparser")
+const serve = require('koa-static')
 
 const config = require("./server.config.js")
 
@@ -86,6 +87,8 @@ router.get("/user_list", async (ctx, next) =>
 
 app.use(router.routes())
 app.use(router.allowedMethods())
+
+app.use(serve(__dirname + '/static'))
 
 app.listen(config.port, config.host, () =>
     {
