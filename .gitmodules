@@ -1,6 +1,3 @@
-[submodule "tinyrpc"]
-	path = tinyrpc
-	url = https://github.com/omegacoleman/tinyrpc
 [submodule "server/vendor/cpp-bredis"]
 	path = server/vendor/cpp-bredis
 	url = https://github.com/basiliscos/cpp-bredis
