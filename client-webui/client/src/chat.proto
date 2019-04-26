@@ -1,0 +1,70 @@
+syntax = "proto3";
+
+package chat;
+
+message LoginRequest {
+	string name = 1;
+	bytes auth = 2;
+}
+
+message LoginReply {
+	enum statetype {
+		ok = 0;
+		auth_failed = 1;
+		not_registered = 2;
+		duplicate_login = 3;
+		error = 4;
+		banned = 5;
+	}
+	statetype state = 1;
+	bytes token = 2;
+}
+
+message ChatSendRequest {
+	string name = 1;
+	bytes token = 2;
+	string text = 3;
+}
+
+message ChatSendReply {
+	enum resulttype {
+		ok = 0;
+		bad_words = 1;
+		error = 2;
+	}
+	resulttype result = 1;
+}
+
+message ChatMessage {
+	bytes id = 1;
+	string sender = 2;
+	string text = 3;
+	uint64 unix_time = 4;
+}
+
+message NotifyChatMessageRequest {
+	ChatMessage chat_message = 1;
+}
+
+message NotifyChatMessageReply {
+}
+
+message GetLogRequest {
+	string name = 1;
+	bytes token = 2;
+}
+
+message GetLogReply {
+	repeated ChatMessage chat_messages = 1;
+}
+
+message VerifyRequest {
+	string name = 1;
+	bytes token = 2;
+}
+
+message VerifyReply {
+	bool ok = 1;
+}
+
+

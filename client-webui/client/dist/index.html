@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>TinyChat Web Client</title>
+	<link href="css/bootstrap.min.css" rel="stylesheet">
+	<style type="text/css">
+		html,body{
+			height: 100%;
+		}
+		#f-v-container
+		{
+			display: flex;
+			flex-direction: column;
+			height: 100%;
+			position: relative;
+		}
+
+		#top-div
+		{
+			margin-bottom:0px;
+			padding:8px;
+			display: flex;
+		}
+
+		#history-message
+		{
+			flex-grow: 1;
+		}
+
+		#bottom-div
+		{
+			display: flex;
+		}
+
+		.sender
+		{
+			font-weight: bold;
+			padding-bottom: 0;
+			padding-left: 0.7em;
+			margin-bottom: 0;
+		}
+		
+		.message
+		{
+			padding-left: 2em;
+			padding-top: 1em;
+		}
+
+		.text
+		{
+			display: flex;
+			margin-right: 2em;
+		}
+
+		.text div
+		{
+			background: #66eeff;
+			border-radius: 0.3em;
+			padding: 1em;
+		}
+
+		.time
+		{
+			font-size: 0.8em;
+			color: #888888;
+			padding-left: 0.7em;
+		}
+	</style>
+</head>
+<body>
+	<div id="f-v-container">
+		<div id="top-div" class="alert alert-success" role="alert">
+			<div id="status_msg">Connected</div>
+			<div style="position:absolute;right:5px;">
+				<span id="user_disp">user : youcai</span>&nbsp;&nbsp;&nbsp;
+				<button id="logout_button" class="btn btn-xs btn-danger">Logout</button>
+			</div>
+		</div>
+		<div id="history-message">
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
+		</div>
+		<div id="bottom-div">
+			<div class="emoji-picker-container" style="width:90%;"><input id="message" type="text" class="form-control" title="Write a message" placeholder="Write a message..." data-emojiable="true"/></div>
+			<button id="send_button" class="btn btn-small btn-success" style="width:10%;min-width:60px;" onclick="send_fun()" title="Send Message">Send</button>
+		</div>
+	</div>
+
+	<script src="js/jquery.min.js"></script>
+	<script src="js/bootstrap.min.js"></script>
+	<script src="./bundle.js"></script>
+</body>
+</html>
