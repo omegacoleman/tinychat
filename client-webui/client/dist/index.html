@@ -23,11 +23,15 @@
 			margin-bottom:0px;
 			padding:8px;
 			display: flex;
+			background: #18baf5;
+			color: #ffffff;
 		}
 
 		#history-message
 		{
 			flex-grow: 1;
+			overflow-y: scroll;
+			background-color: #eeeeee;
 		}
 
 		#bottom-div
@@ -37,7 +41,6 @@
 
 		.sender
 		{
-			font-weight: bold;
 			padding-bottom: 0;
 			padding-left: 0.7em;
 			margin-bottom: 0;
@@ -57,26 +60,37 @@
 
 		.text div
 		{
-			background: #66eeff;
+			background: #18baf5;
+			color: #ffffff;
+			font-size: 1.2em;
 			border-radius: 0.3em;
-			padding: 1em;
+			padding: 0.7em;
 		}
 
 		.time
 		{
 			font-size: 0.8em;
 			color: #888888;
-			padding-left: 0.7em;
+			padding-left: 0.9em;
+		}
+
+		#send_button
+		{
+			background: #18baf5;
+			color: #ffffff;
 		}
 	</style>
 </head>
 <body>
 	<div id="f-v-container">
 		<div id="top-div" class="alert alert-success" role="alert">
-			<div id="status_msg">Connected</div>
+			<div id="status_msg">CONNECTED</div>
 			<div style="position:absolute;right:5px;">
-				<span id="user_disp">user : youcai</span>&nbsp;&nbsp;&nbsp;
-				<button id="logout_button" class="btn btn-xs btn-danger">Logout</button>
+				<span id="user_disp">USER : youcai</span>&nbsp;&nbsp;&nbsp;
+				<button id="logout_button" class="btn btn-xs btn-danger">
+					<span class="glyphicon glyphicon-remove" style="font-size: 0.8em" aria-hidden="true"></span>
+					LOGOUT
+				</button>
 			</div>
 		</div>
 		<div id="history-message">
@@ -87,10 +101,119 @@
 				</div>
 				<p class="time">12:00</p>
 			</div>
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
+			<div class="message">
+				<p class="sender">microcai</p>
+				<div class="text">
+					<div>大家好，我是dr，今年24岁，是学生desu</div>
+				</div>
+				<p class="time">12:00</p>
+			</div>
 		</div>
 		<div id="bottom-div">
 			<div class="emoji-picker-container" style="width:90%;"><input id="message" type="text" class="form-control" title="Write a message" placeholder="Write a message..." data-emojiable="true"/></div>
-			<button id="send_button" class="btn btn-small btn-success" style="width:10%;min-width:60px;" onclick="send_fun()" title="Send Message">Send</button>
+			<button id="send_button" class="btn" style="width:10%;min-width:60px;" onclick="send_fun()" title="Send Message" aria-label="Send">
+				<span class="glyphicon glyphicon-send" aria-hidden="true"></span>
+			</button>
+		</div>
+	</div>
+	<div class="modal show hidden" tabindex="-1" role="dialog">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+					<h4 class="modal-title">LOGIN TO SERVER</h4>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<label for="sever_input">Server URI</label>
+						<input class="form-control" id="sever_input" placeholder="ws://127.0.0.1:8000/">
+					</div>
+					<div class="form-group">
+						<label for="user_input">User</label>
+						<input class="form-control" id="user_input" placeholder="Identical user name">
+					</div>
+					<div class="form-group">
+						<label for="password_input">Password</label>
+						<input type="password" class="form-control" id="password_input" placeholder="Your password for login">
+					</div>
+					<div class="alert alert-danger" style="display: none" id="err_msg_alert" role="alert">
+						<span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+						<span id="err_msg_span">shit, you entered shit!</span>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<p class="text-center">
+						<button class="btn btn-success" onclick="register()">
+							<span class="glyphicon glyphicon-hand-right" aria-hidden="true"></span>
+							GO
+							<span class="glyphicon glyphicon-hand-left" aria-hidden="true"></span>
+						</button>
+					</p>
+				</div>
+			</div>
 		</div>
 	</div>
 
