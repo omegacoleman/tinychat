@@ -10,6 +10,8 @@ find_package(OpenSSL REQUIRED)
 include(CheckCXXCompilerFlag)
 include(CheckLibraryExists)
 
+message(STATUS "Boost include: ${Boost_INCLUDE_DIRS}")
+
 if(WIN32)
 	add_definitions(-DTINYCHAT_WIN)
 	set(WIN32_EXTRA_LIBRARIES ws2_32 wsock32 bcrypt)
@@ -26,7 +28,7 @@ include_directories(${OPENSSL_INCLUDE_DIR})
 include_directories(${Boost_INCLUDE_DIRS})
 include_directories(${PROTOBUF_INCLUDE_DIRS})
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/cmake")
+set(CMAKE_MODULE_PATH  "${PROJECT_SOURCE_DIR}" "${PROJECT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 
 add_definitions(-DBOOST_COROUTINES_NO_DEPRECATION_WARNING)
 
@@ -92,7 +94,7 @@ if (WIN32)
 endif()
 
 add_subdirectory(tinyrpc)
-include_directories(${TINYRPC_INCLUDE_DIRS})
+include_directories(tinyrpc/include)
 
 add_subdirectory(client)
 add_subdirectory(server)
