@@ -1,4 +1,4 @@
-const tinyrpc = require("tinyrpc")
+const tinyrpc = require("js-tinyrpc")
 const WebSocket = require("isomorphic-ws")
 const chat_proto = require("./chat.js")
 

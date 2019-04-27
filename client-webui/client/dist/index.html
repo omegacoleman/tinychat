@@ -10,7 +10,7 @@
 		html,body{
 			height: 100%;
 		}
-		#f-v-container
+		#f_v_container
 		{
 			display: flex;
 			flex-direction: column;
@@ -18,23 +18,37 @@
 			position: relative;
 		}
 
-		#top-div
+		#top_div
 		{
 			margin-bottom:0px;
 			padding:8px;
 			display: flex;
-			background: #18baf5;
-			color: #ffffff;
+			height: 3.5em;
+			background-color: #002b36;
+			color: #839496;
 		}
 
-		#history-message
+		#logout_button
+		{
+			background-color: #657b83;
+			color: #eee8d5;
+		}
+
+		#login_button
+		{
+			background-color: #657b83;
+			color: #eee8d5;
+		}
+
+		#history_message
 		{
 			flex-grow: 1;
 			overflow-y: scroll;
-			background-color: #eeeeee;
+			background-color: #073642;
+			color: #93a1a1;
 		}
 
-		#bottom-div
+		#bottom_div
 		{
 			display: flex;
 		}
@@ -50,9 +64,43 @@
 		{
 			padding-left: 2em;
 			padding-top: 1em;
+			display: flex;
+			flex-direction: column;
+		}
+		
+		.sent-message
+		{
+			padding-right: 2em;
+			padding-top: 1em;
+			display: flex;
+			flex-direction: column;
+			align-items: flex-end;
 		}
 
-		.text
+		.sent-message .sender
+		{
+			float: right;
+			padding-right: 0.7em;
+		}
+
+		.sent-message .time
+		{
+			float: right;
+			padding-right: 0.9em;
+		}
+
+		.sent-message .text
+		{
+			flex-direction: row-reverse;
+			margin-left: 2em;
+		}
+
+		.sent-message .text div
+		{
+			background-color: #859900;
+		}
+
+		.message .text
 		{
 			display: flex;
 			margin-right: 2em;
@@ -60,111 +108,101 @@
 
 		.text div
 		{
-			background: #18baf5;
-			color: #ffffff;
 			font-size: 1.2em;
 			border-radius: 0.3em;
 			padding: 0.7em;
+			background-color: #fdf6e3;
+			color: #002b36;
 		}
 
 		.time
 		{
 			font-size: 0.8em;
-			color: #888888;
 			padding-left: 0.9em;
+		}
+
+		#status_msg
+		{
+			font-size: 2.5em;
+			padding-left: 0.5em;
 		}
 
 		#send_button
 		{
-			background: #18baf5;
-			color: #ffffff;
+			background-color: #b58900;
+			color: #fdf6e3;
+			border-radius: 0;
+		}
+
+		#login_go_button
+		{
+			background-color: #b58900;
+			color: #fdf6e3;
+		}
+
+		input
+		{
+			border-radius: 0 !important;
+			background-color: #657b83 !important;
+			color: #fdf6e3 !important;
+			border: 0 !important;
+		}
+
+		#login_modal_inside .modal-header
+		{
+			background-color: #073642;
+			color: #93a1a1;
+			border-color: #000000;
+		}
+
+		#login_modal_inside .modal-footer
+		{
+			background-color: #073642;
+			color: #93a1a1;
+			border-color: #000000;
+		}
+
+		#login_modal_inside .modal-body
+		{
+			background-color: #586e75;
+			color: #fdf6e3;
+			border-color: #000000;
 		}
 	</style>
 </head>
 <body>
-	<div id="f-v-container">
-		<div id="top-div" class="alert alert-success" role="alert">
-			<div id="status_msg">CONNECTED</div>
-			<div style="position:absolute;right:5px;">
-				<span id="user_disp">USER : youcai</span>&nbsp;&nbsp;&nbsp;
-				<button id="logout_button" class="btn btn-xs btn-danger">
-					<span class="glyphicon glyphicon-remove" style="font-size: 0.8em" aria-hidden="true"></span>
+	<div id="f_v_container">
+		<div id="top_div">
+			<div id="status_msg">
+				<span class="glyphicon glyphicon-cloud" aria-hidden="true"></span>
+			</div>
+			<div style="position:absolute;right:1em;">
+				<button id="logout_button" class="btn">
+					<span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
 					LOGOUT
 				</button>
 			</div>
 		</div>
-		<div id="history-message">
-			<div class="message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
-				</div>
-				<p class="time">12:00</p>
+		<div id="history_message">
+			<div class="text-center" style="padding-top: 4em" id="login_info">
+				<p>
+					<button id="login_button" class="btn">
+						<span class="glyphicon glyphicon-flash" aria-hidden="true"></span>
+						LOGIN
+					</button>
+					 to use tinychat
+				</p>
 			</div>
-			<div class="message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
+			<div id="messages">
+				<div class="message">
+					<p class="sender">microcai</p>
+					<div class="text">
+						<div>大家好，我是dr，今年24岁，是学生desu</div>
+					</div>
+					<p class="time">12:00</p>
 				</div>
-				<p class="time">12:00</p>
 			</div>
-			<div class="message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
-				</div>
-				<p class="time">12:00</p>
-			</div>
-			<div class="message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
-				</div>
-				<p class="time">12:00</p>
-			</div>
-			<div class="message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
-				</div>
-				<p class="time">12:00</p>
-			</div>
-			<div class="message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
-				</div>
-				<p class="time">12:00</p>
-			</div>
-			<div class="message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
-				</div>
-				<p class="time">12:00</p>
-			</div>
-			<div class="message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
-				</div>
-				<p class="time">12:00</p>
-			</div>
-			<div class="message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
-				</div>
-				<p class="time">12:00</p>
-			</div>
-			<div class="message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
-				</div>
-				<p class="time">12:00</p>
-			</div>
-			<div class="message">
+			<div class="sent-message">
 				<p class="sender">microcai</p>
 				<div class="text">
 					<div>大家好，我是dr，今年24岁，是学生desu</div>
@@ -172,16 +210,16 @@
 				<p class="time">12:00</p>
 			</div>
 		</div>
-		<div id="bottom-div">
-			<div class="emoji-picker-container" style="width:90%;"><input id="message" type="text" class="form-control" title="Write a message" placeholder="Write a message..." data-emojiable="true"/></div>
+		<div id="bottom_div">
+			<input id="message_input" type="text" class="form-control" title="Write a message" placeholder="Write a message..." data-emojiable="true"/>
 			<button id="send_button" class="btn" style="width:10%;min-width:60px;" onclick="send_fun()" title="Send Message" aria-label="Send">
 				<span class="glyphicon glyphicon-send" aria-hidden="true"></span>
 			</button>
 		</div>
 	</div>
-	<div class="modal show hidden" tabindex="-1" role="dialog">
+	<div id="login_modal" class="modal" tabindex="-1" role="dialog">
 		<div class="modal-dialog" role="document">
-			<div class="modal-content">
+			<div class="modal-content" id="login_modal_inside">
 				<div class="modal-header">
 					<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
 					<h4 class="modal-title">LOGIN TO SERVER</h4>
@@ -206,7 +244,7 @@
 				</div>
 				<div class="modal-footer">
 					<p class="text-center">
-						<button class="btn btn-success" onclick="register()">
+						<button class="btn" id="login_go_button">
 							<span class="glyphicon glyphicon-hand-right" aria-hidden="true"></span>
 							GO
 							<span class="glyphicon glyphicon-hand-left" aria-hidden="true"></span>
