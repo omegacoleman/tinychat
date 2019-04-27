@@ -25,7 +25,7 @@ $root.chat = (function() {
          * @memberof chat
          * @interface ILoginRequest
          * @property {string|null} [name] LoginRequest name
-         * @property {Uint8Array|null} [auth] LoginRequest auth
+         * @property {string|null} [auth] LoginRequest auth
          */
 
         /**
@@ -53,11 +53,11 @@ $root.chat = (function() {
 
         /**
          * LoginRequest auth.
-         * @member {Uint8Array} auth
+         * @member {string} auth
          * @memberof chat.LoginRequest
          * @instance
          */
-        LoginRequest.prototype.auth = $util.newBuffer([]);
+        LoginRequest.prototype.auth = "";
 
         /**
          * Creates a new LoginRequest instance using the specified properties.
@@ -86,7 +86,7 @@ $root.chat = (function() {
             if (message.name != null && message.hasOwnProperty("name"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
             if (message.auth != null && message.hasOwnProperty("auth"))
-                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.auth);
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.auth);
             return writer;
         };
 
@@ -125,7 +125,7 @@ $root.chat = (function() {
                     message.name = reader.string();
                     break;
                 case 2:
-                    message.auth = reader.bytes();
+                    message.auth = reader.string();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -166,8 +166,8 @@ $root.chat = (function() {
                 if (!$util.isString(message.name))
                     return "name: string expected";
             if (message.auth != null && message.hasOwnProperty("auth"))
-                if (!(message.auth && typeof message.auth.length === "number" || $util.isString(message.auth)))
-                    return "auth: buffer expected";
+                if (!$util.isString(message.auth))
+                    return "auth: string expected";
             return null;
         };
 
@@ -186,10 +186,7 @@ $root.chat = (function() {
             if (object.name != null)
                 message.name = String(object.name);
             if (object.auth != null)
-                if (typeof object.auth === "string")
-                    $util.base64.decode(object.auth, message.auth = $util.newBuffer($util.base64.length(object.auth)), 0);
-                else if (object.auth.length)
-                    message.auth = object.auth;
+                message.auth = String(object.auth);
             return message;
         };
 
@@ -208,18 +205,12 @@ $root.chat = (function() {
             var object = {};
             if (options.defaults) {
                 object.name = "";
-                if (options.bytes === String)
-                    object.auth = "";
-                else {
-                    object.auth = [];
-                    if (options.bytes !== Array)
-                        object.auth = $util.newBuffer(object.auth);
-                }
+                object.auth = "";
             }
             if (message.name != null && message.hasOwnProperty("name"))
                 object.name = message.name;
             if (message.auth != null && message.hasOwnProperty("auth"))
-                object.auth = options.bytes === String ? $util.base64.encode(message.auth, 0, message.auth.length) : options.bytes === Array ? Array.prototype.slice.call(message.auth) : message.auth;
+                object.auth = message.auth;
             return object;
         };
 
@@ -244,7 +235,7 @@ $root.chat = (function() {
          * @memberof chat
          * @interface ILoginReply
          * @property {chat.LoginReply.statetype|null} [state] LoginReply state
-         * @property {Uint8Array|null} [token] LoginReply token
+         * @property {string|null} [token] LoginReply token
          */
 
         /**
@@ -272,11 +263,11 @@ $root.chat = (function() {
 
         /**
          * LoginReply token.
-         * @member {Uint8Array} token
+         * @member {string} token
          * @memberof chat.LoginReply
          * @instance
          */
-        LoginReply.prototype.token = $util.newBuffer([]);
+        LoginReply.prototype.token = "";
 
         /**
          * Creates a new LoginReply instance using the specified properties.
@@ -305,7 +296,7 @@ $root.chat = (function() {
             if (message.state != null && message.hasOwnProperty("state"))
                 writer.uint32(/* id 1, wireType 0 =*/8).int32(message.state);
             if (message.token != null && message.hasOwnProperty("token"))
-                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.token);
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.token);
             return writer;
         };
 
@@ -344,7 +335,7 @@ $root.chat = (function() {
                     message.state = reader.int32();
                     break;
                 case 2:
-                    message.token = reader.bytes();
+                    message.token = reader.string();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -394,8 +385,8 @@ $root.chat = (function() {
                     break;
                 }
             if (message.token != null && message.hasOwnProperty("token"))
-                if (!(message.token && typeof message.token.length === "number" || $util.isString(message.token)))
-                    return "token: buffer expected";
+                if (!$util.isString(message.token))
+                    return "token: string expected";
             return null;
         };
 
@@ -438,10 +429,7 @@ $root.chat = (function() {
                 break;
             }
             if (object.token != null)
-                if (typeof object.token === "string")
-                    $util.base64.decode(object.token, message.token = $util.newBuffer($util.base64.length(object.token)), 0);
-                else if (object.token.length)
-                    message.token = object.token;
+                message.token = String(object.token);
             return message;
         };
 
@@ -460,18 +448,12 @@ $root.chat = (function() {
             var object = {};
             if (options.defaults) {
                 object.state = options.enums === String ? "ok" : 0;
-                if (options.bytes === String)
-                    object.token = "";
-                else {
-                    object.token = [];
-                    if (options.bytes !== Array)
-                        object.token = $util.newBuffer(object.token);
-                }
+                object.token = "";
             }
             if (message.state != null && message.hasOwnProperty("state"))
                 object.state = options.enums === String ? $root.chat.LoginReply.statetype[message.state] : message.state;
             if (message.token != null && message.hasOwnProperty("token"))
-                object.token = options.bytes === String ? $util.base64.encode(message.token, 0, message.token.length) : options.bytes === Array ? Array.prototype.slice.call(message.token) : message.token;
+                object.token = message.token;
             return object;
         };
 
@@ -518,7 +500,7 @@ $root.chat = (function() {
          * @memberof chat
          * @interface IChatSendRequest
          * @property {string|null} [name] ChatSendRequest name
-         * @property {Uint8Array|null} [token] ChatSendRequest token
+         * @property {string|null} [token] ChatSendRequest token
          * @property {string|null} [text] ChatSendRequest text
          */
 
@@ -547,11 +529,11 @@ $root.chat = (function() {
 
         /**
          * ChatSendRequest token.
-         * @member {Uint8Array} token
+         * @member {string} token
          * @memberof chat.ChatSendRequest
          * @instance
          */
-        ChatSendRequest.prototype.token = $util.newBuffer([]);
+        ChatSendRequest.prototype.token = "";
 
         /**
          * ChatSendRequest text.
@@ -588,7 +570,7 @@ $root.chat = (function() {
             if (message.name != null && message.hasOwnProperty("name"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
             if (message.token != null && message.hasOwnProperty("token"))
-                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.token);
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.token);
             if (message.text != null && message.hasOwnProperty("text"))
                 writer.uint32(/* id 3, wireType 2 =*/26).string(message.text);
             return writer;
@@ -629,7 +611,7 @@ $root.chat = (function() {
                     message.name = reader.string();
                     break;
                 case 2:
-                    message.token = reader.bytes();
+                    message.token = reader.string();
                     break;
                 case 3:
                     message.text = reader.string();
@@ -673,8 +655,8 @@ $root.chat = (function() {
                 if (!$util.isString(message.name))
                     return "name: string expected";
             if (message.token != null && message.hasOwnProperty("token"))
-                if (!(message.token && typeof message.token.length === "number" || $util.isString(message.token)))
-                    return "token: buffer expected";
+                if (!$util.isString(message.token))
+                    return "token: string expected";
             if (message.text != null && message.hasOwnProperty("text"))
                 if (!$util.isString(message.text))
                     return "text: string expected";
@@ -696,10 +678,7 @@ $root.chat = (function() {
             if (object.name != null)
                 message.name = String(object.name);
             if (object.token != null)
-                if (typeof object.token === "string")
-                    $util.base64.decode(object.token, message.token = $util.newBuffer($util.base64.length(object.token)), 0);
-                else if (object.token.length)
-                    message.token = object.token;
+                message.token = String(object.token);
             if (object.text != null)
                 message.text = String(object.text);
             return message;
@@ -720,19 +699,13 @@ $root.chat = (function() {
             var object = {};
             if (options.defaults) {
                 object.name = "";
-                if (options.bytes === String)
-                    object.token = "";
-                else {
-                    object.token = [];
-                    if (options.bytes !== Array)
-                        object.token = $util.newBuffer(object.token);
-                }
+                object.token = "";
                 object.text = "";
             }
             if (message.name != null && message.hasOwnProperty("name"))
                 object.name = message.name;
             if (message.token != null && message.hasOwnProperty("token"))
-                object.token = options.bytes === String ? $util.base64.encode(message.token, 0, message.token.length) : options.bytes === Array ? Array.prototype.slice.call(message.token) : message.token;
+                object.token = message.token;
             if (message.text != null && message.hasOwnProperty("text"))
                 object.text = message.text;
             return object;
@@ -979,7 +952,7 @@ $root.chat = (function() {
          * Properties of a ChatMessage.
          * @memberof chat
          * @interface IChatMessage
-         * @property {Uint8Array|null} [id] ChatMessage id
+         * @property {string|null} [id] ChatMessage id
          * @property {string|null} [sender] ChatMessage sender
          * @property {string|null} [text] ChatMessage text
          * @property {number|Long|null} [unixTime] ChatMessage unixTime
@@ -1002,11 +975,11 @@ $root.chat = (function() {
 
         /**
          * ChatMessage id.
-         * @member {Uint8Array} id
+         * @member {string} id
          * @memberof chat.ChatMessage
          * @instance
          */
-        ChatMessage.prototype.id = $util.newBuffer([]);
+        ChatMessage.prototype.id = "";
 
         /**
          * ChatMessage sender.
@@ -1057,7 +1030,7 @@ $root.chat = (function() {
             if (!writer)
                 writer = $Writer.create();
             if (message.id != null && message.hasOwnProperty("id"))
-                writer.uint32(/* id 1, wireType 2 =*/10).bytes(message.id);
+                writer.uint32(/* id 1, wireType 2 =*/10).string(message.id);
             if (message.sender != null && message.hasOwnProperty("sender"))
                 writer.uint32(/* id 2, wireType 2 =*/18).string(message.sender);
             if (message.text != null && message.hasOwnProperty("text"))
@@ -1099,7 +1072,7 @@ $root.chat = (function() {
                 var tag = reader.uint32();
                 switch (tag >>> 3) {
                 case 1:
-                    message.id = reader.bytes();
+                    message.id = reader.string();
                     break;
                 case 2:
                     message.sender = reader.string();
@@ -1146,8 +1119,8 @@ $root.chat = (function() {
             if (typeof message !== "object" || message === null)
                 return "object expected";
             if (message.id != null && message.hasOwnProperty("id"))
-                if (!(message.id && typeof message.id.length === "number" || $util.isString(message.id)))
-                    return "id: buffer expected";
+                if (!$util.isString(message.id))
+                    return "id: string expected";
             if (message.sender != null && message.hasOwnProperty("sender"))
                 if (!$util.isString(message.sender))
                     return "sender: string expected";
@@ -1173,10 +1146,7 @@ $root.chat = (function() {
                 return object;
             var message = new $root.chat.ChatMessage();
             if (object.id != null)
-                if (typeof object.id === "string")
-                    $util.base64.decode(object.id, message.id = $util.newBuffer($util.base64.length(object.id)), 0);
-                else if (object.id.length)
-                    message.id = object.id;
+                message.id = String(object.id);
             if (object.sender != null)
                 message.sender = String(object.sender);
             if (object.text != null)
@@ -1207,13 +1177,7 @@ $root.chat = (function() {
                 options = {};
             var object = {};
             if (options.defaults) {
-                if (options.bytes === String)
-                    object.id = "";
-                else {
-                    object.id = [];
-                    if (options.bytes !== Array)
-                        object.id = $util.newBuffer(object.id);
-                }
+                object.id = "";
                 object.sender = "";
                 object.text = "";
                 if ($util.Long) {
@@ -1223,7 +1187,7 @@ $root.chat = (function() {
                     object.unixTime = options.longs === String ? "0" : 0;
             }
             if (message.id != null && message.hasOwnProperty("id"))
-                object.id = options.bytes === String ? $util.base64.encode(message.id, 0, message.id.length) : options.bytes === Array ? Array.prototype.slice.call(message.id) : message.id;
+                object.id = message.id;
             if (message.sender != null && message.hasOwnProperty("sender"))
                 object.sender = message.sender;
             if (message.text != null && message.hasOwnProperty("text"))
@@ -1609,7 +1573,7 @@ $root.chat = (function() {
          * @memberof chat
          * @interface IGetLogRequest
          * @property {string|null} [name] GetLogRequest name
-         * @property {Uint8Array|null} [token] GetLogRequest token
+         * @property {string|null} [token] GetLogRequest token
          */
 
         /**
@@ -1637,11 +1601,11 @@ $root.chat = (function() {
 
         /**
          * GetLogRequest token.
-         * @member {Uint8Array} token
+         * @member {string} token
          * @memberof chat.GetLogRequest
          * @instance
          */
-        GetLogRequest.prototype.token = $util.newBuffer([]);
+        GetLogRequest.prototype.token = "";
 
         /**
          * Creates a new GetLogRequest instance using the specified properties.
@@ -1670,7 +1634,7 @@ $root.chat = (function() {
             if (message.name != null && message.hasOwnProperty("name"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
             if (message.token != null && message.hasOwnProperty("token"))
-                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.token);
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.token);
             return writer;
         };
 
@@ -1709,7 +1673,7 @@ $root.chat = (function() {
                     message.name = reader.string();
                     break;
                 case 2:
-                    message.token = reader.bytes();
+                    message.token = reader.string();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -1750,8 +1714,8 @@ $root.chat = (function() {
                 if (!$util.isString(message.name))
                     return "name: string expected";
             if (message.token != null && message.hasOwnProperty("token"))
-                if (!(message.token && typeof message.token.length === "number" || $util.isString(message.token)))
-                    return "token: buffer expected";
+                if (!$util.isString(message.token))
+                    return "token: string expected";
             return null;
         };
 
@@ -1770,10 +1734,7 @@ $root.chat = (function() {
             if (object.name != null)
                 message.name = String(object.name);
             if (object.token != null)
-                if (typeof object.token === "string")
-                    $util.base64.decode(object.token, message.token = $util.newBuffer($util.base64.length(object.token)), 0);
-                else if (object.token.length)
-                    message.token = object.token;
+                message.token = String(object.token);
             return message;
         };
 
@@ -1792,18 +1753,12 @@ $root.chat = (function() {
             var object = {};
             if (options.defaults) {
                 object.name = "";
-                if (options.bytes === String)
-                    object.token = "";
-                else {
-                    object.token = [];
-                    if (options.bytes !== Array)
-                        object.token = $util.newBuffer(object.token);
-                }
+                object.token = "";
             }
             if (message.name != null && message.hasOwnProperty("name"))
                 object.name = message.name;
             if (message.token != null && message.hasOwnProperty("token"))
-                object.token = options.bytes === String ? $util.base64.encode(message.token, 0, message.token.length) : options.bytes === Array ? Array.prototype.slice.call(message.token) : message.token;
+                object.token = message.token;
             return object;
         };
 
@@ -2036,7 +1991,7 @@ $root.chat = (function() {
          * @memberof chat
          * @interface IVerifyRequest
          * @property {string|null} [name] VerifyRequest name
-         * @property {Uint8Array|null} [token] VerifyRequest token
+         * @property {string|null} [token] VerifyRequest token
          */
 
         /**
@@ -2064,11 +2019,11 @@ $root.chat = (function() {
 
         /**
          * VerifyRequest token.
-         * @member {Uint8Array} token
+         * @member {string} token
          * @memberof chat.VerifyRequest
          * @instance
          */
-        VerifyRequest.prototype.token = $util.newBuffer([]);
+        VerifyRequest.prototype.token = "";
 
         /**
          * Creates a new VerifyRequest instance using the specified properties.
@@ -2097,7 +2052,7 @@ $root.chat = (function() {
             if (message.name != null && message.hasOwnProperty("name"))
                 writer.uint32(/* id 1, wireType 2 =*/10).string(message.name);
             if (message.token != null && message.hasOwnProperty("token"))
-                writer.uint32(/* id 2, wireType 2 =*/18).bytes(message.token);
+                writer.uint32(/* id 2, wireType 2 =*/18).string(message.token);
             return writer;
         };
 
@@ -2136,7 +2091,7 @@ $root.chat = (function() {
                     message.name = reader.string();
                     break;
                 case 2:
-                    message.token = reader.bytes();
+                    message.token = reader.string();
                     break;
                 default:
                     reader.skipType(tag & 7);
@@ -2177,8 +2132,8 @@ $root.chat = (function() {
                 if (!$util.isString(message.name))
                     return "name: string expected";
             if (message.token != null && message.hasOwnProperty("token"))
-                if (!(message.token && typeof message.token.length === "number" || $util.isString(message.token)))
-                    return "token: buffer expected";
+                if (!$util.isString(message.token))
+                    return "token: string expected";
             return null;
         };
 
@@ -2197,10 +2152,7 @@ $root.chat = (function() {
             if (object.name != null)
                 message.name = String(object.name);
             if (object.token != null)
-                if (typeof object.token === "string")
-                    $util.base64.decode(object.token, message.token = $util.newBuffer($util.base64.length(object.token)), 0);
-                else if (object.token.length)
-                    message.token = object.token;
+                message.token = String(object.token);
             return message;
         };
 
@@ -2219,18 +2171,12 @@ $root.chat = (function() {
             var object = {};
             if (options.defaults) {
                 object.name = "";
-                if (options.bytes === String)
-                    object.token = "";
-                else {
-                    object.token = [];
-                    if (options.bytes !== Array)
-                        object.token = $util.newBuffer(object.token);
-                }
+                object.token = "";
             }
             if (message.name != null && message.hasOwnProperty("name"))
                 object.name = message.name;
             if (message.token != null && message.hasOwnProperty("token"))
-                object.token = options.bytes === String ? $util.base64.encode(message.token, 0, message.token.length) : options.bytes === Array ? Array.prototype.slice.call(message.token) : message.token;
+                object.token = message.token;
             return object;
         };
 

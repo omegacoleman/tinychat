@@ -4,7 +4,7 @@ package chat;
 
 message LoginRequest {
 	string name = 1;
-	bytes auth = 2;
+	string auth = 2;
 }
 
 message LoginReply {
@@ -17,12 +17,12 @@ message LoginReply {
 		banned = 5;
 	}
 	statetype state = 1;
-	bytes token = 2;
+	string token = 2;
 }
 
 message ChatSendRequest {
 	string name = 1;
-	bytes token = 2;
+	string token = 2;
 	string text = 3;
 }
 
@@ -36,7 +36,7 @@ message ChatSendReply {
 }
 
 message ChatMessage {
-	bytes id = 1;
+	string id = 1;
 	string sender = 2;
 	string text = 3;
 	uint64 unix_time = 4;
@@ -51,7 +51,7 @@ message NotifyChatMessageReply {
 
 message GetLogRequest {
 	string name = 1;
-	bytes token = 2;
+	string token = 2;
 }
 
 message GetLogReply {
@@ -60,7 +60,7 @@ message GetLogReply {
 
 message VerifyRequest {
 	string name = 1;
-	bytes token = 2;
+	string token = 2;
 }
 
 message VerifyReply {

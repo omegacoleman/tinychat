@@ -113,6 +113,8 @@
 			padding: 0.7em;
 			background-color: #fdf6e3;
 			color: #002b36;
+			word-wrap:break-word;
+			word-break:break-all;
 		}
 
 		.time
@@ -194,25 +196,11 @@
 				</p>
 			</div>
 			<div id="messages">
-				<div class="message">
-					<p class="sender">microcai</p>
-					<div class="text">
-						<div>大家好，我是dr，今年24岁，是学生desu</div>
-					</div>
-					<p class="time">12:00</p>
-				</div>
-			</div>
-			<div class="sent-message">
-				<p class="sender">microcai</p>
-				<div class="text">
-					<div>大家好，我是dr，今年24岁，是学生desu</div>
-				</div>
-				<p class="time">12:00</p>
 			</div>
 		</div>
 		<div id="bottom_div">
 			<input id="message_input" type="text" class="form-control" title="Write a message" placeholder="Write a message..." data-emojiable="true"/>
-			<button id="send_button" class="btn" style="width:10%;min-width:60px;" onclick="send_fun()" title="Send Message" aria-label="Send">
+			<button id="send_button" class="btn" style="width:10%;min-width:60px;" title="Send Message" aria-label="Send">
 				<span class="glyphicon glyphicon-send" aria-hidden="true"></span>
 			</button>
 		</div>
@@ -227,7 +215,7 @@
 				<div class="modal-body">
 					<div class="form-group">
 						<label for="sever_input">Server URI</label>
-						<input class="form-control" id="sever_input" placeholder="ws://127.0.0.1:8000/">
+						<input class="form-control" id="server_input" placeholder="ws://127.0.0.1:8000/">
 					</div>
 					<div class="form-group">
 						<label for="user_input">User</label>
@@ -239,7 +227,7 @@
 					</div>
 					<div class="alert alert-danger" style="display: none" id="err_msg_alert" role="alert">
 						<span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
-						<span id="err_msg_span">shit, you entered shit!</span>
+						<span id="err_msg_span"></span>
 					</div>
 				</div>
 				<div class="modal-footer">
