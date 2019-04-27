@@ -14,7 +14,7 @@ class RPCSession
         this.tiny = tinyrpc.tiny(chat_proto, {
             "chat.NotifyChatMessageRequest$chat.NotifyChatMessageReply": function (request)
             {
-                message_handle(request)
+                message_handle(request.chatMessage)
                 return {}
             }
         })
@@ -31,9 +31,9 @@ class RPCSession
                 {
                     this.login_info.name = request.name
                     this.login_info.token = reply.token
-                    resolve();
+                    resolve()
                 } else {
-                    reject(reply.state);
+                    reject(reply.state)
                 }
             })
         })
@@ -81,7 +81,7 @@ class RPCSession
                 name: this.login_info.name,
                 token: this.login_info.token,
             }, (reply) => {
-                resolve(reply.chat_messages)
+                resolve(reply.chatMessages)
             })
         })
     }

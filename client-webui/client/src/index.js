@@ -5,21 +5,24 @@ const moment = require("moment")
 
 var session
 
-var my_name = ""
-
 const debug_server = true
 
 function show_message(msg)
 {
     console.log(msg)
-    let sent_m = (my_name == msg.chatMessage.sender)
+    let my_name = ""
+    if(session)
+    {
+    	my_name = session.login_info.name || ""
+    }
+    let sent_m = (my_name == msg.sender)
     $("#messages").append(
 			"<div class=\"" + (sent_m ? "sent-" : "") + "message\">" + 
-				"<p class=\"sender\">" + msg.chatMessage.sender + "</p>" + 
+				"<p class=\"sender\">" + msg.sender + "</p>" + 
 				"<div class=\"text\">" + 
-					"<div>" + msg.chatMessage.text + "</div>" + 
+					"<div>" + msg.text + "</div>" + 
 				"</div>" + 
-				"<p class=\"time\">" + moment.unix(msg.chatMessage.unixTime).format("HH:mm:ss") + "</p>" + 
+				"<p class=\"time\">" + moment.unix(msg.unixTime).format("HH:mm:ss") + "</p>" + 
 			"</div>"
     	)
     $("#history_message").scrollTop($("#history_message")[0].scrollHeight);
@@ -35,6 +38,19 @@ function do_login(server_uri, user, password)
     }))
 }
 
+function do_revise()
+{
+	return session.get_log().then(
+		mlist => {
+			console.log(mlist)
+			for(let i in mlist)
+			{
+				let it = mlist[i]
+				show_message(it)
+			}
+		})
+}
+
 function do_send(text)
 {
     return session.send_message(text)
@@ -46,14 +62,21 @@ function login_ok()
 {
 	$("#login_info").hide()
 	$("#messages").show()
-	$("#messages").html("")
 	$("#login_modal").modal('hide')
+    $("#history_message").scrollTop($("#history_message")[0].scrollHeight);
+	$("#message_input").attr("disabled", false)
+	$("#send_button").attr("disabled", false)
+	$("#logout_button").attr("disabled", false)
 }
 
 function logout_ok()
 {
 	$("#login_info").show()
 	$("#messages").hide()
+	$("#messages").html("")
+	$("#message_input").attr("disabled", true)
+	$("#send_button").attr("disabled", true)
+	$("#logout_button").attr("disabled", true)
 }
 
 function login_modal_err_msg(message)
@@ -90,8 +113,7 @@ $("#login_go_button").click(() => {
 		$("#server_input").val(), 
 		$("#user_input").val(), 
 		$("#password_input").val()
-		).then( () => {
-			my_name = session.login_info.name
+		).then(do_revise).then( () => {
 			login_ok()
 		}).catch( reason => {
 			console.log(reason)
@@ -113,6 +135,10 @@ $().ready(() => {
 function _send()
 {
 	let s = $("#message_input").val()
+	if(! s)
+	{
+		return
+	}
 	$("#message_input").val("")
 	do_send(s)
 }
