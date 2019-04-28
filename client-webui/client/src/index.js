@@ -7,7 +7,7 @@ const escapeHtml = require('escape-html')
 let session
 
 let config = {
-	password_no_sha256: true, 
+	password_no_sha256: false, 
 	lock_uri: ""
 }
 
