@@ -30,7 +30,7 @@
 	<script type="text/javascript">
 		function load_users()
 		{
-			$.get("/user_list", function (data, status) {
+			$.get("user_list", function (data, status) {
 				$("#users_table_body > *").remove();
 				for(var i in data.user_list)
 				{
