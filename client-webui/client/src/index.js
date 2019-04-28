@@ -2,10 +2,29 @@
 const RPCSession = require("./browser-client.js")
 const crypto = require("crypto")
 const moment = require("moment")
+const escapeHtml = require('escape-html')
 
-var session
+let session
 
-const debug_server = true
+let config = {
+	password_no_sha256: true, 
+	lock_uri: ""
+}
+
+window.init_webui_config = function (_config)
+{
+	if (_config)
+	{
+		config = _config
+	}
+	if (config.lock_uri)
+	{
+		$("#server_input").val(config.lock_uri);
+		$("#server_input").attr("disabled", true)
+	}
+}
+
+//////////////////
 
 function show_message(msg)
 {
@@ -18,9 +37,9 @@ function show_message(msg)
     let sent_m = (my_name == msg.sender)
     $("#messages").append(
 			"<div class=\"" + (sent_m ? "sent-" : "") + "message\">" + 
-				"<p class=\"sender\">" + msg.sender + "</p>" + 
+				"<p class=\"sender\">" + escapeHtml(msg.sender) + "</p>" + 
 				"<div class=\"text\">" + 
-					"<div>" + msg.text + "</div>" + 
+					"<div>" + escapeHtml(msg.text) + "</div>" + 
 				"</div>" + 
 				"<p class=\"time\">" + moment.unix(msg.unixTime).format("HH:mm:ss") + "</p>" + 
 			"</div>"
@@ -34,7 +53,7 @@ function do_login(server_uri, user, password)
 		session = new RPCSession(server_uri, show_message, resolve)
 	}).then(() => session.login({
         name: user,
-        auth: debug_server ? password : crypto.createHash("sha256").update(password).digest("hex")
+        auth: config.password_no_sha256 ? password : crypto.createHash("sha256").update(password).digest("hex")
     }))
 }
 
@@ -114,6 +133,10 @@ $("#login_go_button").click(() => {
 		$("#user_input").val(), 
 		$("#password_input").val()
 		).then(do_revise).then( () => {
+			session.onclose(() => {
+				session = null
+				logout_ok()
+			})
 			login_ok()
 		}).catch( reason => {
 			console.log(reason)
@@ -124,7 +147,7 @@ $("#login_go_button").click(() => {
 $("#logout_button").click(() => {
 	session.close()
 	session = null
-	logout_ok() ////
+	logout_ok()
 })
 
 $().ready(() => {

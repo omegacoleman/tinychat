@@ -2,8 +2,6 @@ const tinyrpc = require("js-tinyrpc")
 const WebSocket = require("isomorphic-ws")
 const chat_proto = require("./chat.js")
 
-// const SERVER_URI = "ws://127.0.0.1:8000/"
-
 class RPCSession
 {
     constructor(server_uri, message_handle, onopen)
@@ -89,6 +87,11 @@ class RPCSession
     close()
     {
     	this.ws.close()
+    }
+
+    onclose(handle)
+    {
+    	this.ws.onclose = handle
     }
 }
 
