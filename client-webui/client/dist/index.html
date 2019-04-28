@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>TinyChat Web Client</title>
+	<link href="css/bootstrap.min.css" rel="stylesheet">
+	<link href="css/stylesheet.css" rel="stylesheet">
+</head>
+<body>
+	<div id="f_v_container">
+		<div id="top_div">
+			<div id="status_msg">
+				<span class="glyphicon glyphicon-cloud" aria-hidden="true"></span>
+			</div>
+			<div style="position:absolute;right:1em;">
+				<button id="logout_button" class="btn">
+					<span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+					LOGOUT
+				</button>
+			</div>
+		</div>
+		<div id="history_message">
+			<div class="text-center" style="padding-top: 4em" id="login_info">
+				<p>
+					<button id="login_button" class="btn">
+						<span class="glyphicon glyphicon-flash" aria-hidden="true"></span>
+						LOGIN
+					</button>
+					 to use tinychat
+				</p>
+			</div>
+			<div id="messages">
+			</div>
+		</div>
+		<div id="bottom_div">
+			<input id="message_input" type="text" class="form-control" title="Write a message" placeholder="Write a message..." data-emojiable="true"/>
+			<button id="send_button" class="btn" style="width:10%;min-width:60px;" title="Send Message" aria-label="Send">
+				<span class="glyphicon glyphicon-send" aria-hidden="true"></span>
+			</button>
+		</div>
+	</div>
+	<div id="login_modal" class="modal" tabindex="-1" role="dialog">
+		<div class="modal-dialog" role="document">
+			<div class="modal-content" id="login_modal_inside">
+				<div class="modal-header">
+					<button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+					<h4 class="modal-title">LOGIN TO SERVER</h4>
+				</div>
+				<div class="modal-body">
+					<div class="form-group">
+						<label for="sever_input">Server URI</label>
+						<input autocomplete="on" class="form-control" id="server_input" placeholder="ws://127.0.0.1:8000/">
+					</div>
+					<div class="form-group">
+						<label for="user_input">User</label>
+						<input autocomplete="on" class="form-control" id="user_input" placeholder="Identical user name">
+					</div>
+					<div class="form-group">
+						<label for="password_input">Password</label>
+						<input autocomplete="on" type="password" class="form-control" id="password_input" placeholder="Your password for login">
+					</div>
+					<div class="alert alert-danger" style="display: none" id="err_msg_alert" role="alert">
+						<span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+						<span id="err_msg_span"></span>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<p class="text-center">
+						<button class="btn" id="login_go_button">
+							<span class="glyphicon glyphicon-hand-right" aria-hidden="true"></span>
+							GO
+							<span class="glyphicon glyphicon-hand-left" aria-hidden="true"></span>
+						</button>
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script src="js/jquery.min.js"></script>
+	<script src="js/bootstrap.min.js"></script>
+	<script src="./bundle.js"></script>
+	<!-- use below to make your own client -->
+	<!--
+	<script type="text/javascript">
+		window.init_webui_config({
+			password_no_sha256: false, 
+			lock_uri: "ws://127.0.0.1:1234/"
+		})
+	</script>
+	-->
+</body>
+</html>

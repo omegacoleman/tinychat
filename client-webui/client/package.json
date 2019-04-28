@@ -1,0 +1,21 @@
+{
+  "name": "tinychat-browser-client",
+  "version": "0.1.0",
+  "description": "The browser client for tinychat",
+  "main": "index.js",
+  "repository": "http://github.com/omegacoleman/tinychat/",
+  "author": "Stephen Coleman <omegacoleman@gmail.com>",
+  "license": "BSL-1.0",
+  "private": true,
+  "devDependencies": {
+    "isomorphic-ws": "^4.0.1",
+    "js-tinyrpc": "^0.1.2",
+    "moment": "^2.24.0",
+    "protobufjs": "^6.8.8",
+    "webpack": "^4.30.0",
+    "webpack-cli": "^3.3.1"
+  },
+  "dependencies": {
+    "escape-html": "^1.0.3"
+  }
+}
