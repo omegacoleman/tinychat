@@ -24,6 +24,13 @@ Hosting the chatroom:
  - Do "npm install" in client-webui/invreg, and run server.js, you might want to change server.config.js
  - Host client-webui/client/dist, and change index.html if you want to lock the server URI or something
 
+using docker
+------------
+
+Are you already confused? It's a lot easier using https://github.com/omegacoleman/tinychat-docker-compose !
+
+Just do ``` docker-compose up -d ``` and this project will be built and hosted at port 8080, with register system at /invreg and websocket server at both /tinychat and port 8000. Try it!
+
 screenshot
 ----------
 
