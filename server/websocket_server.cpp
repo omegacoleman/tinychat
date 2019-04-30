@@ -27,6 +27,8 @@
 
 #include "optional_ssl_stream.hpp"
 
+#include "lazy_timeout.hpp"
+
 using namespace tinyrpc;
 
 
@@ -43,6 +45,8 @@ class rpc_session;
 static std::unique_ptr<chatroom::Room<rpc_session> > room;
 static std::unique_ptr<chatroom::ChatLog> chatlog;
 
+static std::unique_ptr<tinychat::utility::lazy_timeout> timeout_scanner;
+
 class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
 public:
@@ -50,8 +54,17 @@ public:
 	explicit rpc_session(ws&& s)
 	: ws_(std::move(s)), 
 		rpc_stub_(ws_), 
-		id(sess_id++)
+		id(sess_id++), 
+		avail_flag(true)
 	{
+		timeout_scanner->bind([this]()
+		{
+			return this->flush_avail();
+		}, [this]()
+		{
+			std::cerr << "rpc_session " << identity() << " closed due to timeout." <<  std::endl;
+			return this->close();
+		});
 		std::cout << "rpc_session opened, id #" << id << std::endl;
 	}
 
@@ -84,6 +97,7 @@ public:
 				auto bytes = ws_.async_read(buf, yield[ec]);
 				if (ec)
 					throw tinychat::utility::boost_system_ec_exception(ec);
+				this->avail_flag = true;
 				rpc_stub_.dispatch(buf, ec);
 				if (ec)
 					throw tinychat::utility::boost_system_ec_exception(ec);
@@ -217,11 +231,19 @@ public:
 		ws_.lowest_layer().cancel();
 	}
 
+	bool flush_avail()
+	{
+		bool ret = this->avail_flag;
+		this->avail_flag = false;
+		return ret;
+	}
+
 private:
 	uint64_t id;
 	ws ws_;
 	rpc_websocket_service<ws> rpc_stub_;
 	std::optional<std::string> login_name;
+	bool avail_flag; // did the session read any data, until last flush_avail() call
 };
 
 void do_session(tcp::socket &socket, 
@@ -323,6 +345,7 @@ int main(int argc, char* argv[])
 			("ssl-key", boost::program_options::value<std::string>(), "private key file path, required with --use-ssl")
 			("room-id", boost::program_options::value<std::string>()->default_value("tc"), "chatroom unique id, change it to different"
 				" only when you have parallel tinychat processes running on same db")
+			("heartbeat-kick", boost::program_options::value<unsigned int>()->default_value(40), "kick-offline connections idle(without heartbeat) for given seconds")
 			;
 		boost::program_options::variables_map vm;
 		boost::program_options::store(boost::program_options::parse_command_line(argc, argv, desc), vm);
@@ -403,6 +426,9 @@ int main(int argc, char* argv[])
 			std::cerr << "error : must at least specify one db client, check --help for more" << std::endl;
 			return EXIT_FAILURE;
 		}
+
+		timeout_scanner = std::make_unique<tinychat::utility::lazy_timeout>(std::chrono::seconds(vm["heartbeat-kick"].as<unsigned int>()));
+		timeout_scanner->start_scan(ioc);
 
 		boost::asio::spawn(ioc, [&address, &port, &ssl_context](boost::asio::yield_context yield)
 		{
