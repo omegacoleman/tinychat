@@ -41,7 +41,7 @@
 	<script type="text/javascript">
 		function register()
 		{
-			$.post("/register", {
+			$.post("register", {
 				user: $("#user_input").val(), 
 				password: $("#password_input").val()
 			}, function (data, status) {
