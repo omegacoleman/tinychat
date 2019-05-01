@@ -48,16 +48,8 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 			while ( true )
 			{
-				auto bytes = ws_.async_read(buf, yield[ec]);
-				if (ec)
-				{
-					throw tinychat::utility::boost_system_ec_exception(ec);
-				}
-				rpc_stub_.dispatch(buf, ec);
-				if (ec)
-				{
-					throw tinychat::utility::boost_system_ec_exception(ec);
-				}
+				auto bytes = ws_.async_read(buf, yield[ec]); _RT_EC("read", ec)
+				rpc_stub_.dispatch(buf, ec); _RT_EC("rpc_dispatch", ec)
 				buf.consume(bytes);
 			}
 		}
@@ -88,17 +80,9 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 					while (true)
 					{
 						timer.expires_after(duration);
-						timer.async_wait(yield[ec]);
-						if (ec)
-						{
-							throw tinychat::utility::boost_system_ec_exception(ec);
-						}
+						timer.async_wait(yield[ec]); _RT_EC("wait(hb)", ec)
 						chat::VerifyReply v_reply;
-						rpc_stub_.async_call(v_req, v_reply, yield[ec]);
-						if (ec)
-						{
-							throw tinychat::utility::boost_system_ec_exception(ec);
-						}
+						rpc_stub_.async_call(v_req, v_reply, yield[ec]); _RT_EC("rpc_call(hb)", ec)
 						if (!v_reply.ok())
 						{
 							throw tinychat::utility::worded_exception("server replied not ok");
@@ -137,11 +121,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 			chat::LoginReply reply;
 
-			rpc_stub_.async_call(msg, reply, yield[ec]);
-			if (ec)
-			{
-				throw tinychat::utility::boost_system_ec_exception(ec);
-			}
+			rpc_stub_.async_call(msg, reply, yield[ec]); _RT_EC("rpc_call(login)", ec)
 
 			if ( reply.state() != chat::LoginReply::ok )
 			{
@@ -180,11 +160,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 			gl_req.set_name(name);
 			gl_req.set_token(token);
 			chat::GetLogReply gl_reply;
-			rpc_stub_.async_call(gl_req, gl_reply, yield[ec]);
-			if (ec)
-			{
-				throw tinychat::utility::boost_system_ec_exception(ec);
-			}
+			rpc_stub_.async_call(gl_req, gl_reply, yield[ec]); _RT_EC("rpc_call(getlog)", ec)
 			if (gl_reply.chat_messages_size())
 			{
 				std::cout << "they said these before you join : " << std::endl;
@@ -204,21 +180,13 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 			while ( true )
 			{
-				auto context = tinychat::utility::async_stdin_getline(ioc, yield[ec]);
-				if (ec)
-				{
-					throw tinychat::utility::boost_system_ec_exception(ec);
-				}
+				auto context = tinychat::utility::async_stdin_getline(ioc, yield[ec]); _RT_EC("getline", ec)
 				chat::ChatSendRequest v_req;
 				chat::ChatSendReply v_reply;
 				v_req.set_name(name);
 				v_req.set_token(token);
 				v_req.set_text(context);
-				rpc_stub_.async_call(v_req, v_reply, yield[ec]);
-				if (ec)
-				{
-					throw tinychat::utility::boost_system_ec_exception(ec);
-				}
+				rpc_stub_.async_call(v_req, v_reply, yield[ec]); _RT_EC("rpc_call(chatsend)", ec)
 				if ( v_reply.result() == chat::ChatSendReply::ok )
 				{
 					std::cout << "message sent" << std::endl;
@@ -254,32 +222,17 @@ void do_session(
 		s.emplace(tinychat::utility::tag_non_ssl, ioc);
 	}
 
-	auto const results = resolver.async_resolve(host, port, yield[ec]);
-	if (ec)
-	{
-		throw tinychat::utility::boost_system_ec_exception(ec);
-	}
+	auto const results = resolver.async_resolve(host, port, yield[ec]); _RT_EC("resolver.async_resolve", ec)
 
 	boost::asio::async_connect(s->next_layer().next_layer(), results.begin(), results.end(),
-			yield[ec]);
-	if (ec)
-	{
-		throw tinychat::utility::boost_system_ec_exception(ec);
-	}
+			yield[ec]); _RT_EC("async_connect", ec)
 
 	if (ssl_context)
 	{
-		s->next_layer().async_handshake(boost::asio::ssl::stream_base::client, yield[ec]);
-		if (ec)
-			throw tinychat::utility::boost_system_ec_exception(ec);
+		s->next_layer().async_handshake(boost::asio::ssl::stream_base::client, yield[ec]); _RT_EC("ssl_handshake", ec)
 	}
 
-	s->async_handshake(host, "/tinychat", yield[ec]);
-	if (ec)
-	{
-		throw tinychat::utility::boost_system_ec_exception(ec);
-	}
-
+	s->async_handshake(host, "/tinychat", yield[ec]); _RT_EC("ws_handshake", ec)
 	s->binary(true);
 
 	auto ses = std::make_shared<rpc_session>(std::move(s.value()));

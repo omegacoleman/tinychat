@@ -54,11 +54,7 @@ namespace tinychat
 					{
 						boost::system::error_code ec;
 						timer.expires_after(this->interval);
-						timer.async_wait(yield[ec]);
-						if (ec)
-						{
-							throw boost_system_ec_exception(ec);
-						}
+						timer.async_wait(yield[ec]); _RT_EC("wait(lazy_scan)", ec)
 						try
 						{
 							this->scan();

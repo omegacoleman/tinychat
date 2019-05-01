@@ -78,11 +78,7 @@ namespace chatroom
 					std::cout << "bredis_client.hpp : subscription started" << std::endl;
 					while (true)
 					{
-						parse_result_t parse_result = this->c_subscription->async_read(rx_buff, yield[ec]);
-						if (ec)
-						{
-							throw tinychat::utility::boost_system_ec_exception(ec);
-						}
+						parse_result_t parse_result = this->c_subscription->async_read(rx_buff, yield[ec]); _RT_EC("read(subscribe)", ec)
 						std::cout << "bredis_client.hpp : subscription got something" << std::endl;
 						auto extract = boost::apply_visitor(bredis::extractor<result_iterator>(), parse_result.result);
 						rx_buff.consume(parse_result.consumed);
@@ -140,11 +136,7 @@ namespace chatroom
 					boost::asio::streambuf tx_buff, rx_buff;
 					auto consumed = this->c->async_write(tx_buff, bredis::single_command_t{ "SMEMBERS", "user:banned" }, yield);
 					tx_buff.consume(consumed);
-					auto parse_result = this->c->async_read(rx_buff, yield[ec]);
-					if (ec)
-					{
-						throw tinychat::utility::boost_system_ec_exception(ec);
-					}
+					auto parse_result = this->c->async_read(rx_buff, yield[ec]); _RT_EC("read(SMEMBERS user:banned)", ec)
 					auto extract = boost::apply_visitor(bredis::extractor<result_iterator>(), parse_result.result);
 					rx_buff.consume(parse_result.consumed);
 					auto &reply_arr = boost::get<bredis::extracts::array_holder_t>(extract);
@@ -164,17 +156,9 @@ namespace chatroom
 					std::cout << "bredis_client.hpp : refreshing user list.." << std::endl;
 					boost::asio::streambuf tx_buff, rx_buff;
 					boost::system::error_code ec;
-					auto consumed = this->c->async_write(tx_buff, bredis::single_command_t{ "HGETALL", "users" }, yield[ec]);
-					if (ec)
-					{
-						throw tinychat::utility::boost_system_ec_exception(ec);
-					}
+					auto consumed = this->c->async_write(tx_buff, bredis::single_command_t{ "HGETALL", "users" }, yield[ec]); _RT_EC("write(HGETALL users)", ec)
 					tx_buff.consume(consumed);
-					auto parse_result = this->c->async_read(rx_buff, yield[ec]);
-					if (ec)
-					{
-						throw tinychat::utility::boost_system_ec_exception(ec);
-					}
+					auto parse_result = this->c->async_read(rx_buff, yield[ec]); _RT_EC("read(HGETALL users)", ec)
 					auto extract = boost::apply_visitor(
 						bredis::extractor<result_iterator>(),
 						parse_result.result);
@@ -276,18 +260,10 @@ namespace chatroom
 
 						container.push_back(bredis::single_command_t(log_by_unix_time_cmd.begin(), log_by_unix_time_cmd.end()));
 
-						std::size_t consumed = this->c->async_write(tx_buff, container, yield[ec]);
-						if (ec)
-						{
-							throw tinychat::utility::boost_system_ec_exception(ec);
-						}
+						std::size_t consumed = this->c->async_write(tx_buff, container, yield[ec]); _RT_EC("write(checkin commands)", ec)
 						tx_buff.consume(consumed);
 
-						auto parse_result = this->c->async_read(rx_buff, yield[ec], container.size());
-						if (ec)
-						{
-							throw tinychat::utility::boost_system_ec_exception(ec);
-						}
+						auto parse_result = this->c->async_read(rx_buff, yield[ec], container.size()); _RT_EC("read(checkin commands)", ec)
 						auto &replies = boost::get<bredis::markers::array_holder_t<result_iterator> >(parse_result.result);
 
 						bool this_ok = true;
