@@ -57,7 +57,7 @@ public:
 		id(sess_id++), 
 		avail_flag(true)
 	{
-		timeout_scanner->bind([this]()
+		this->uninst_lazy = timeout_scanner->bind([this]()
 		{
 			return this->flush_avail();
 		}, [this]()
@@ -70,6 +70,7 @@ public:
 
 	~rpc_session()
 	{
+		this->uninst_lazy();
 		if(login_name)
 			room->logout(login_name.value());
 		std::cout << "rpc_session destructing #" << id << std::endl;
@@ -235,7 +236,9 @@ private:
 	ws ws_;
 	rpc_websocket_service<ws> rpc_stub_;
 	std::optional<std::string> login_name;
+
 	bool avail_flag; // did the session read any data, until last flush_avail() call
+	tinychat::utility::lazy_timeout::UninstallHandle uninst_lazy;
 };
 
 void do_session(tcp::socket &socket, 

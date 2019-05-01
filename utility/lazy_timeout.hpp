@@ -14,26 +14,38 @@ namespace tinychat
 	namespace utility
 	{
 		// A "lazy timeout" will scan every binded AvailHandle, every setted interval
-		// If a binded AvailHandle returned false 2 times in a row, then it's removed
-		// from bind list and the TimeoutHandle packed with it is called too.
+		// If a binded AvailHandle returned false 2 times in a row, then the 
+		// TimeoutHandle packed with it is called.
+		// If a binded handle is expired(cannot be called anymore), it shall be 
+		// "uninstalled" using the returned uninstall handle.
 		class lazy_timeout
 		{
 		public:
 			using AvailHandle = std::function<bool(void)>;
 			using TimeoutHandle = std::function<void(void)>;
+			using UninstallHandle = std::function<void(void)>;
 
 			lazy_timeout(std::chrono::nanoseconds interval)
 				:interval(interval)
 			{}
 
-			void bind(AvailHandle avail, TimeoutHandle timeout)
+			UninstallHandle bind(AvailHandle avail, TimeoutHandle timeout)
 			{
 				this->binded.push_front({ avail, timeout });
+				auto inserted = this->binded.begin();
+				return [inserted, this]()
+				{
+					inserted->uninstalled = true;
+				};
 			}
 
 			void scan()
 			{
 				binded.erase(std::remove_if(binded.begin(), binded.end(), [](binded_t& it) -> bool {
+					if (it.uninstalled)
+					{
+						return true;
+					}
 					bool avail_now = it.avail_func();
 					bool timed_out = !(avail_now || it.last_check);
 					if (timed_out)
@@ -41,7 +53,7 @@ namespace tinychat
 						it.timeout_func();
 					}
 					it.last_check = avail_now;
-					return timed_out;
+					return false;
 				}), binded.end());
 			}
 
@@ -86,12 +98,14 @@ namespace tinychat
 				binded_t(AvailHandle avail_func, TimeoutHandle timeout_func)
 					: avail_func(avail_func),
 					timeout_func(timeout_func),
-					last_check(true)
+					last_check(true),
+					uninstalled(false)
 				{}
 
 				AvailHandle avail_func;
 				TimeoutHandle timeout_func;
 				bool last_check;
+				bool uninstalled;
 			};
 			std::list<binded_t> binded;
 			std::chrono::nanoseconds interval;
