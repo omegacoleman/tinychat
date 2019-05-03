@@ -214,25 +214,32 @@ namespace chatroom
 		size_t log_revise_size;
 	};
 
-	template <typename session_type> class SessionDeliverer
+	template <typename SessionType> class DefaultSessionDeliverer
 	{
-		public:
-		void operator() (session_type &session, std::shared_ptr<chatroom::Message> message) {
+	public:
+		void operator() (SessionType &session, std::shared_ptr<chatroom::Message> message) {
 			session.deliver(message);
 		}
 	};
 
-	template<typename session_type, typename session_deliverer = SessionDeliverer<session_type> > class Person
+	template <typename SessionType> class DefaultSessionCloser
 	{
 	public:
-		Person(const std::string &name, const std::string &auth)
-			:name(name), auth(auth), login_info({})
-		{
+		void operator() (SessionType &session) {
+			session.close();
 		}
+	};
 
-		bool authenticate(const std::string &name, const std::string &auth) const
+	template <
+		typename SessionType, 
+		typename SessionDeliverer = DefaultSessionDeliverer<SessionType>,
+		typename SessionCloser = DefaultSessionCloser<SessionType>
+	> class Person
+	{
+	public:
+		Person(const std::string &name)
+			:name(name), login_info({})
 		{
-			return (this->name == name) && (this->auth == auth);
 		}
 
 		bool deliver_message(std::shared_ptr<chatroom::Message> message)
@@ -241,14 +248,29 @@ namespace chatroom
 			{
 				return false;
 			}
-			session_deliverer()(this->login_info->session, message);
+			SessionDeliverer()(this->login_info->session, message);
 			return true;
+		}
+
+		void logout()
+		{
+			this->login_info.reset();
+		}
+
+		void ban()
+		{
+			if (!this->login_info.has_value())
+			{
+				return;
+			}
+			SessionCloser()(this->login_info->session);
+			logout();
 		}
 
 		class LoginInfo
 		{
 		public:
-			LoginInfo(const std::string &name, session_type& session, uint64_t unix_time=0)
+			LoginInfo(const std::string &name, SessionType& session, uint64_t unix_time=0)
 			:login_unix_time(unix_time ? unix_time : std::time(NULL)),
 			token_uuid(boost::uuids::random_generator()()),
 			token(),
@@ -268,16 +290,15 @@ namespace chatroom
 			uint64_t login_unix_time;
 			std::string token;
 			boost::uuids::uuid token_uuid;
-			session_type &session;
+			SessionType &session;
 			
-			bool verify(const std::string &token, const session_type &session) const
+			bool verify(const std::string &token, const SessionType &session) const
 			{
 				return (this->token == token) &&
 					(std::addressof(this->session) == std::addressof(session));
 			}
 		};
 		std::string name;
-		std::string auth;
 		std::optional<LoginInfo> login_info;
 	};
 
@@ -286,49 +307,68 @@ namespace chatroom
 	CHAT_EXCEPTION_CLASS(DuplicateLoginException, "duplicate login");
 	CHAT_EXCEPTION_CLASS(UserBannedException, "user got banned");
 
-	template<typename session_type> class Room
+	bool DefaultAuthenticateFunc(const std::string &name, const std::string &auth)
+	{
+		return false;
+	}
+
+	bool DefaultIsBannedFunc(const std::string &name)
+	{
+		return false;
+	}
+
+	template <typename SessionType>
+	class Room
 	{
 	public:
+
+		typedef typename std::function<bool(const std::string &, const std::string &)> AuthenticateFunc;
+		typedef typename std::function<bool(const std::string &)> IsBannedFunc;
+
 		Room(const std::string &room_id)
-			: room_id(room_id)
+			: room_id(room_id), 
+			authenticate_func(DefaultAuthenticateFunc), 
+			is_banned_func(DefaultIsBannedFunc)
 		{}
 
-		template <typename UserAuthPairIterator>
-			void load_user(UserAuthPairIterator begin, UserAuthPairIterator end)
-			{
-				std::for_each(
-					begin, end,
-					[this](const auto &AuthPair)
-					{
-						members.emplace(AuthPair.first, Person<session_type>(AuthPair.first, AuthPair.second));
-					});
-			}
-		
-		template <typename BannedUserIterator>
-			void load_banned_user(BannedUserIterator begin,BannedUserIterator end)
-			{
-				std::for_each(
-					begin, end,
-					[this](const auto &user)
-					{
-						banned_members.emplace(user);
-					});
-			}
+		void set_authenticate_func(AuthenticateFunc func)
+		{
+			this->authenticate_func = func;
+		}
+
+		bool authenticate(const std::string &name, const std::string &auth) const
+		{
+			return this->authenticate_func(name, auth);
+		}
+
+		void set_is_banned_func(IsBannedFunc func)
+		{
+			this->is_banned_func = func;
+		}
+
+		bool is_banned(const std::string &name) const
+		{
+			return this->is_banned_func(name);
+		}
+
+		void add_member(const std::string &name)
+		{
+			this->members.insert(std::make_pair(name, Person<SessionType>(name)));
+		}
 				
-				std::string
-		login(const std::string &name, const std::string &auth, session_type &session)
+		std::string login(const std::string &name, const std::string &auth, SessionType &session)
 		{
 			if(members.count(name) == 0)
 			{
 				throw UserNotFoundException();
 			}
 			
-			if (banned_members.count(name))
+			if (is_banned(name))
 			{
 				throw UserBannedException();
 			}
 			
-			if (! members.at(name).authenticate(name, auth))
+			if (! authenticate(name, auth))
 			{
 				throw AuthenticateFailedException();
 			}
@@ -345,32 +385,24 @@ namespace chatroom
 		{
 			if (members.count(name))
 			{
-				members.at(name).login_info.reset();
+				members.at(name).logout();
 			}
 		}
-		
+
 		void ban(const std::string &name)
 		{
 			if (members.count(name))
 			{
-				banned_members.insert(name);
-				members.at(name).login_info->session.close();
-				members.at(name).login_info.reset();
+				members.at(name).ban();
 			}
 		}
-		
-		void update_user(const std::string &name, const std::string &auth)
+
+		void unban(const std::string &name)
 		{
-			if (members.count(name))
-			{
-				members.at(name).auth = auth;
-			} else
-			{
-				members.emplace(name, Person<session_type>(name, auth));
-			}
+			// Currently nothing to do
 		}
 		
-		bool verify(const std::string &name, const std::string &token, session_type &session)
+		bool verify(const std::string &name, const std::string &token, SessionType &session)
 		{
 			if (members.count(name) == 0)
 			{
@@ -410,9 +442,11 @@ namespace chatroom
 			chat_log.add(message);
 		}
 
-		std::map<std::string, Person<session_type> > members;
-		std::unordered_set<std::string> banned_members;
+		std::map<std::string, Person<SessionType> > members;
 		std::string room_id;
+
+		AuthenticateFunc authenticate_func;
+		IsBannedFunc is_banned_func;
 	};
 }
 

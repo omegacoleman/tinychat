@@ -17,7 +17,7 @@
 
 #include "chatroom.hpp"
 
-#include "db/bredis_client.hpp"
+#include "db/via_bredis.hpp"
 #include "db/dummy_client.hpp"
 
 #include "tinyrpc/rpc_websocket_service.hpp"
@@ -339,8 +339,6 @@ int main(int argc, char* argv[])
 		auto const address = boost::asio::ip::address::from_string(vm["host"].as<std::string>() );
 		auto const port = vm["port"].as<unsigned short>();
 
-		std::unique_ptr<chatroom::db::via_bredis::connection> db_conn;
-
 		std::unique_ptr<boost::asio::ssl::context> ssl_context;
 
 		if (vm.count("use-ssl"))
@@ -357,41 +355,55 @@ int main(int argc, char* argv[])
 			ssl_context->set_options(ssl::context::single_dh_use);
 		}
 
+		std::unique_ptr<chatroom::db::via_bredis::bredis_client> db_client;
 		if (vm.count("db-redis"))
 		{
-			db_conn = std::make_unique<chatroom::db::via_bredis::connection>(
-				ioc,
-				vm["db-redis"].as<std::string>(),
-				vm["redis-port"].as<unsigned short>());
 			
-			
-			auto users = db_conn->fetch_users();
-			room->load_user(users.begin(), users.end());
-			auto banned_users = db_conn->fetch_banned_users();
-			room->load_banned_user(banned_users.begin(),banned_users.end());
-			
-			db_conn->auto_refresh_users(
-				[](const std::string &name, const std::string &auth)
-				{
-					room->update_user(name, auth);
-				});
-			
-			db_conn->auto_refresh_banned_users(
-				[](std::string user)
-				{
-					room->ban(user);
-				});
+			boost::asio::ip::tcp::endpoint ep{
+				boost::asio::ip::address::from_string(vm["db-redis"].as<std::string>()), 
+				vm["redis-port"].as<unsigned short>()
+			};
+			db_client = std::make_unique<chatroom::db::via_bredis::bredis_client>(ioc, ep);
 			
 			chatlog->auto_checkin(
-				[&db_conn](chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback)
+				[&db_client](chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback)
 				{
-					db_conn->checkin_log(it, end, done_callback);
+					db_client->log_storage_checkin(it, end, done_callback);
 				});
 			
+			db_client->user_name_auth().for_each_name([](const std::string &name)
+			{
+				room->add_member(name);
+			});
+			room->set_authenticate_func([&db_client](const std::string &name, const std::string &auth) -> bool
+			{
+				return db_client->authenticate(name, auth);
+			});
+			room->set_is_banned_func([&db_client](const std::string &name) -> bool
+			{
+				return db_client->is_banned(name);
+			});
+			db_client->user_name_auth().set_on_add_user([](const std::string & name)
+			{
+				room->add_member(name);
+			});
+			db_client->banlist().set_on_ban([](const std::string & name)
+			{
+				room->ban(name);
+			});
+			db_client->banlist().set_on_unban([](const std::string & name)
+			{
+				room->unban(name);
+			});
 		}
 		else if (vm.count("db-dummy"))
 		{
-			room->load_user(chatroom::db::dummy::dummy_user_auth.begin(), chatroom::db::dummy::dummy_user_auth.end());
+			std::for_each(chatroom::db::dummy::dummy_user_auth.begin(), chatroom::db::dummy::dummy_user_auth.end(), [](const auto & pair)
+			{
+				room->add_member(pair.first);
+			});
+			room->set_authenticate_func(chatroom::db::dummy::auth_func);
+			room->set_is_banned_func(chatroom::db::dummy::is_banned);
 			chatlog->auto_checkin(chatroom::db::dummy::dummy_db_checkin);
 		}
 		else

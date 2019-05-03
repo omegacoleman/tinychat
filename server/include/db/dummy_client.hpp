@@ -3,6 +3,7 @@
 #include <memory>
 #include <map>
 #include <functional>
+#include <vector>
 
 #include "chatroom.hpp"
 
@@ -28,7 +29,18 @@ namespace chatroom
 				{"banana", "1"},
 				{"papaya", "2"},
 				{"cocoa", "3"},
+				{"jujube", "4"}
 			};
+
+			bool auth_func(const std::string &name, const std::string &auth)
+			{
+				return (dummy_user_auth.at(name) == auth);
+			}
+
+			bool is_banned(const std::string &name)
+			{
+				return (name == "jujube");
+			}
 		};
 	};
 };
