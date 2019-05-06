@@ -114,15 +114,15 @@ namespace chatroom
 					subscriptor_->start(ioc, "tinychat");
 				}
 
-				template<typename Iterator>
-				void log_storage_checkin(Iterator it, Iterator end, std::function<void()> ok_callback)
+				template<typename Generator, typename Handle>
+				void log_storage_checkin(Generator next, Handle ok_callback)
 				{
-					boost::asio::spawn(this->ioc, [it, end, ok_callback, this](boost::asio::yield_context yield)
+					boost::asio::spawn(this->ioc, [next, ok_callback, this](boost::asio::yield_context yield)
 					{
 						if (!this->lock.try_get()) return;
 						try
 						{
-							this->log_storage_.checkin(this->main_connection, it, end, yield);
+							this->log_storage_.checkin(this->main_connection, next, yield);
 						}
 						catch (const std::exception &e)
 						{

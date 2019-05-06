@@ -175,8 +175,8 @@ public:
 			std::cerr << "name " << req.name() << " tried to get log but fails the token valification" << std::endl;
 			return;
 		}
-		auto iter_pair = chatlog->log_revise();
-		for (auto it = iter_pair.first; it != iter_pair.second; ++it)
+		auto iter_gen = chatlog->log_revise();
+		for (auto it = iter_gen(); it != nullptr; it = iter_gen())
 		{
 			chat::ChatMessage *m = reply.add_chat_messages();
 			m->set_id(it->id);
@@ -366,9 +366,9 @@ int main(int argc, char* argv[])
 			db_client = std::make_unique<chatroom::db::via_bredis::bredis_client>(ioc, ep);
 			
 			chatlog->auto_checkin(
-				[&db_client](chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> done_callback)
+				[&db_client](chatroom::ChatLog::NextMessageHandler next, chatroom::ChatLog::DoneHander done_callback)
 				{
-					db_client->log_storage_checkin(it, end, done_callback);
+					db_client->log_storage_checkin(next, done_callback);
 				});
 			
 			db_client->user_name_auth().for_each_name([](const std::string &name)
@@ -404,7 +404,7 @@ int main(int argc, char* argv[])
 			});
 			room->set_authenticate_func(chatroom::db::dummy::auth_func);
 			room->set_is_banned_func(chatroom::db::dummy::is_banned);
-			chatlog->auto_checkin(chatroom::db::dummy::dummy_db_checkin);
+			chatlog->auto_checkin(chatroom::db::dummy::dummy_db_checkin<chatroom::ChatLog::NextMessageHandler, chatroom::ChatLog::DoneHander>);
 		}
 		else
 		{

@@ -34,8 +34,8 @@ namespace chatroom
 					typedef typename bredis::to_iterator<Buffer>::iterator_t ResultIterator;
 					typedef typename bredis::extractor<ResultIterator> Extractor;
 
-					template <typename Iterator>
-					bool checkin(BredisConnection &conn, Iterator it, Iterator end, boost::asio::yield_context yield)
+					template <typename Generator>
+					bool checkin(BredisConnection &conn, Generator next, boost::asio::yield_context yield)
 					{
 						boost::system::error_code ec;
 
@@ -44,7 +44,7 @@ namespace chatroom
 
 						bool all_ok = true;
 
-						for (; it != end; ++it)
+						for (auto it = next(); it != nullptr; it = next())
 						{
 							bredis::command_container_t container;
 

@@ -13,11 +13,12 @@ namespace chatroom
 	{
 		namespace dummy
 		{
-			void dummy_db_checkin(chatroom::ChatLog::LogIterator it, chatroom::ChatLog::LogIterator end, std::function<void()> callback)
+			template <typename Generator, typename Handle>
+			void dummy_db_checkin(Generator next, Handle callback)
 			{
 				std::cout << "dummy_client.hpp : Pretending to checkin these to db : " << std::endl;
 				std::cout << "-----------------------------------" << std::endl;
-				for (; it != end; ++it)
+				for (auto it = next(); it != nullptr; it = next())
 				{
 					std::cout << it->id << std::endl;
 				}

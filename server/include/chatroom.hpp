@@ -98,21 +98,9 @@ namespace chatroom
 			}
 		}
 
-		class LogIterator : public std::iterator<std::bidirectional_iterator_tag, const Message>
-		{
-		public:
-			explicit LogIterator(ChatLog &chat_log, size_t index) : chat_log(chat_log), index(index) {}
-			LogIterator& operator++() { index++; return *this; }
-			LogIterator operator++(int) { LogIterator retval(chat_log, index); ++index; return retval; }
-			bool operator==(LogIterator other) const { return index == other.index; }
-			bool operator!=(LogIterator other) const { return index != other.index; }
-			reference operator*() const { return chat_log.logs[index]; }
-			Message *operator->() const { return &(chat_log.logs[index]); }
-
-			size_t index;
-			ChatLog &chat_log;
-		};
-		using checkin_range_callable = std::function<void(LogIterator, LogIterator, std::function<void()>)>;
+		using NextMessageHandler = std::function<Message *()>;
+		using DoneHander = std::function<void()>;
+		using CheckinHandler = std::function<void(NextMessageHandler, DoneHander)>;
 
 		template <typename message_iterator>
 		void load_from_db(message_iterator it, message_iterator end)
@@ -129,18 +117,28 @@ namespace chatroom
 			}
 		}
 
-		void checkin_all(checkin_range_callable callable)
+		void checkin_all(CheckinHandler callable)
 		{
 			this->checkin(this->not_checked_in_n(), callable);
 		}
 
-		void checkin(size_t amount, checkin_range_callable callable)
+		void checkin(size_t amount, CheckinHandler callable)
 		{
 			std::cout << "ChatLog : attempt to checkin " << amount << " logs..." << std::endl;
 			if (amount > this->not_checked_in_n()) {
 				throw CheckInTooMuchException();
 			}
-			callable(LogIterator(*this, this->checkin_i), LogIterator(*this, this->checkin_i + amount), [=]()
+			this->curr_checkin_i.emplace(this->checkin_i);
+			callable([amount, this]() mutable -> Message *
+			{
+				if ((*this->curr_checkin_i) < (this->checkin_i + amount))
+				{
+					return &(this->logs[(*this->curr_checkin_i)++]);
+				}
+				else {
+					return {};
+				}
+			}, [amount, this]()
 			{
 				this->checkin_done(amount);
 			});
@@ -159,7 +157,7 @@ namespace chatroom
 			}
 		}
 
-		void auto_checkin(checkin_range_callable handler)
+		void auto_checkin(CheckinHandler handler)
 		{
 			this->checkin_handler.emplace(handler);
 		}
@@ -195,23 +193,35 @@ namespace chatroom
 			return (this->logs.size() - this->checkin_i);
 		}
 
-		std::pair<LogIterator, LogIterator> log_revise()
+		NextMessageHandler log_revise()
 		{
 			if(this->logs.size() <= this->log_revise_size)
 			{
-				return std::make_pair(LogIterator(*this, 0), LogIterator(*this, logs.size()));
+				this->curr_revise_i.emplace(0);
 			}
-			return std::make_pair(
-				LogIterator(*this, logs.size() - this->log_revise_size),
-				LogIterator(*this, logs.size()));
+			else {
+				this->curr_revise_i.emplace(logs.size() - log_revise_size);
+			}
+			return [this]() mutable->Message *
+			{
+				if ((*this->curr_revise_i) < this->logs.size())
+				{
+					return &(this->logs[(*this->curr_revise_i)++]);
+				}
+				else {
+					return nullptr;
+				}
+			};
 		}
 
-		std::optional<checkin_range_callable> checkin_handler;
+		std::optional<size_t> curr_checkin_i;
+		std::optional<size_t> curr_revise_i;
 		size_t size_limit;
 		size_t checkin_bundle_size;
 		std::deque<Message> logs;
 		size_t checkin_i;
 		size_t log_revise_size;
+		std::optional<CheckinHandler> checkin_handler;
 	};
 
 	template <typename SessionType> class DefaultSessionDeliverer

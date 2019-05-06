@@ -30,10 +30,10 @@ namespace chatroom
 					boost::asio::streambuf
 				> impl_t;
 
-				template <typename Iterator>
-				bool checkin(impl_t::BredisConnection &conn, Iterator it, Iterator end, boost::asio::yield_context yield)
+				template <typename Generator>
+				bool checkin(impl_t::BredisConnection &conn, Generator next, boost::asio::yield_context yield)
 				{
-					return detail.checkin(conn, it, end, yield);
+					return detail.checkin(conn, next, yield);
 				}
 			private:
 				impl_t detail;
