@@ -95,9 +95,9 @@ public:
 		{
 			try
 			{
-				auto bytes = ws_.async_read(buf, yield[ec]); _RT_EC("read", ec)
+				auto bytes = ws_.async_read(buf, yield[ec]); _RT_EC("read", ec);
 				this->avail_flag = true;
-				rpc_stub_.dispatch(buf, ec); _RT_EC("rpc_dispatch", ec)
+				rpc_stub_.dispatch(buf, ec); _RT_EC("rpc_dispatch", ec);
 				buf.consume(bytes);
 			} catch (const std::exception &e)
 			{
@@ -197,7 +197,7 @@ public:
 		chat_message->set_text(message->text);
 		req.set_allocated_chat_message(chat_message);
 		chat::NotifyChatMessageReply reply;
-		this->rpc_stub_.async_call(req, reply, yield[ec]); _RT_EC("deliver_proc(" + this->identity() + ")", ec)
+		this->rpc_stub_.async_call(req, reply, yield[ec]); _RT_EC("deliver_proc(" + this->identity() + ")", ec);
 	}
 
 	void deliver(std::shared_ptr<chatroom::Message> message)
@@ -254,13 +254,13 @@ void do_session(tcp::socket &socket,
 		if (ssl_context)
 		{
 			s.emplace(tinychat::utility::tag_ssl, std::move(socket), *(ssl_context.value()));
-			s->next_layer().async_handshake(boost::asio::ssl::stream_base::server, yield[ec]); _RT_EC("ssl_handshake", ec)
+			s->next_layer().async_handshake(boost::asio::ssl::stream_base::server, yield[ec]); _RT_EC("ssl_handshake", ec);
 		}
 		else {
 			s.emplace(tinychat::utility::tag_non_ssl, std::move(socket));
 		}
 
-		s->async_accept(yield[ec]); _RT_EC("ws_accept", ec)
+		s->async_accept(yield[ec]); _RT_EC("ws_accept", ec);
 
 		s->binary(true);
 
@@ -280,16 +280,16 @@ void do_listen(
 	boost::system::error_code ec;
 
 	tcp::acceptor acceptor(ioc);
-	acceptor.open(endpoint.protocol(), ec); _RT_EC("acceptor.open", ec)
-	acceptor.set_option(boost::asio::socket_base::reuse_address(true), ec); _RT_EC("acceptor.set_option", ec)
-	acceptor.bind(endpoint, ec); _RT_EC("acceptor.bind", ec)
-	acceptor.listen(boost::asio::socket_base::max_listen_connections, ec); _RT_EC("acceptor.listen", ec)
+	acceptor.open(endpoint.protocol(), ec); _RT_EC("acceptor.open", ec);
+	acceptor.set_option(boost::asio::socket_base::reuse_address(true), ec); _RT_EC("acceptor.set_option", ec);
+	acceptor.bind(endpoint, ec); _RT_EC("acceptor.bind", ec);
+	acceptor.listen(boost::asio::socket_base::max_listen_connections, ec); _RT_EC("acceptor.listen", ec);
 
 	std::cout << "listening on ws://" << endpoint << "/" << std::endl;
 	for(;;)
 	{
 		tcp::socket socket(ioc);
-		acceptor.async_accept(socket, yield[ec]); _RT_EC("acceptor.async_accept", ec)
+		acceptor.async_accept(socket, yield[ec]); _RT_EC("acceptor.async_accept", ec);
 		boost::asio::spawn(ioc, [socket{ std::move(socket) }, ssl_context](
 			boost::asio::yield_context yield) mutable
 		{

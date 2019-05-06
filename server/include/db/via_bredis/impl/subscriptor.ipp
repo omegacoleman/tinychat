@@ -71,7 +71,7 @@ namespace chatroom
 						{
 							try
 							{
-								ParseResult parse_result = this->redis_connection.async_read(rx_buff, yield[ec]); _RT_EC("read(subscribe)", ec)
+								ParseResult parse_result = this->redis_connection.async_read(rx_buff, yield[ec]); _RT_EC("read(subscribe)", ec);
 									std::cout << "bredis_client.hpp : subscription got something" << std::endl;
 
 								auto extract = boost::apply_visitor(Extractor(), parse_result.result);

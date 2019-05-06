@@ -70,10 +70,10 @@ namespace chatroom
 							Buffer tx_buff, rx_buff;
 							auto consumed = conn.async_write(
 								tx_buff, bredis::single_command_t{ "HGETALL", "users" }, yield[ec]
-							); _RT_EC("write(HGETALL users)", ec)
+							); _RT_EC("write(HGETALL users)", ec);
 							tx_buff.consume(consumed);
 
-							auto parse_result = conn.async_read(rx_buff, yield[ec]); _RT_EC("read(HGETALL users)", ec)
+							auto parse_result = conn.async_read(rx_buff, yield[ec]); _RT_EC("read(HGETALL users)", ec);
 							auto extract = boost::apply_visitor(Extractor(), parse_result.result);
 							rx_buff.consume(parse_result.consumed);
 
@@ -163,10 +163,10 @@ namespace chatroom
 							Buffer tx_buff, rx_buff;
 							auto consumed = conn.async_write(
 								tx_buff, bredis::single_command_t{ "SMEMBERS", "user:banned" }, yield[ec]
-							); _RT_EC("write(HGETALL users)", ec)
+							); _RT_EC("write(HGETALL users)", ec);
 							tx_buff.consume(consumed);
 
-							auto parse_result = conn.async_read(rx_buff, yield[ec]); _RT_EC("read(SMEMBERS user:banned)", ec)
+							auto parse_result = conn.async_read(rx_buff, yield[ec]); _RT_EC("read(SMEMBERS user:banned)", ec);
 							auto extract = boost::apply_visitor(Extractor(), parse_result.result);
 							rx_buff.consume(parse_result.consumed);
 

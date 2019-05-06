@@ -66,10 +66,10 @@ namespace chatroom
 							};
 							container.push_back(bredis::single_command_t(log_by_unix_time_cmd.begin(), log_by_unix_time_cmd.end()));
 
-							std::size_t consumed = conn.async_write(tx_buff, container, yield[ec]); _RT_EC("write(checkin commands)", ec)
+							std::size_t consumed = conn.async_write(tx_buff, container, yield[ec]); _RT_EC("write(checkin commands)", ec);
 							tx_buff.consume(consumed);
 
-							auto parse_result = conn.async_read(rx_buff, yield[ec], container.size()); _RT_EC("read(checkin commands)", ec)
+							auto parse_result = conn.async_read(rx_buff, yield[ec], container.size()); _RT_EC("read(checkin commands)", ec);
 							auto &replies = boost::get<bredis::markers::array_holder_t<ResultIterator> >(parse_result.result);
 
 							bool this_ok = true;
