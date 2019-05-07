@@ -13,6 +13,8 @@
 #include "boost_system_exception.hpp"
 #include "worded_exception.hpp"
 
+#include "logging.hpp"
+
 namespace chatroom
 {
 	namespace db
@@ -40,6 +42,7 @@ namespace chatroom
 
 						void reload_sync(BredisConnection &conn)
 						{
+							auto &logger = tinychat::logging::logger::instance();
 							this->cache.clear();
 
 							Buffer rx_buff;
@@ -57,15 +60,16 @@ namespace chatroom
 								auto &auth_str = boost::get<bredis::extracts::string_t>(*it);
 								++it;
 								this->cache.insert(std::make_pair(user_str.str, auth_str.str));
-								std::cout << "user_manage : loading user : " << user_str.str << std::endl;
+								logger.info("user_manage") << "loading user : " << user_str.str;
 							}
 						}
 
 						void refresh(BredisConnection &conn, boost::asio::yield_context yield)
 						{
+							auto &logger = tinychat::logging::logger::instance();
 							boost::system::error_code ec;
 
-							std::cout << "user_manage : refreshing user list.." << std::endl;
+							logger.info("user_manage") << "refreshing user list..";
 
 							Buffer tx_buff, rx_buff;
 							auto consumed = conn.async_write(
@@ -87,14 +91,14 @@ namespace chatroom
 								if (!this->cache.count(user_str.str))
 								{
 									this->cache.insert(std::make_pair(user_str.str, auth_str.str));
-									std::cout << "user_manage : adding user : " << user_str.str << std::endl;
+									logger.info("user_manage") << "adding user : " << user_str.str;
 									if (on_add_user) on_add_user(user_str.str);
 								}
 								else {
 									if (this->cache[user_str.str] != auth_str.str)
 									{
 										this->cache[user_str.str] = auth_str.str;
-										std::cout << "user_manage : changed user auth str : " << user_str.str << std::endl;
+										logger.info("user_manage") << "changed user auth str : " << user_str.str;
 										if (on_auth_change) on_auth_change(user_str.str, auth_str.str);
 									}
 								}
@@ -136,6 +140,7 @@ namespace chatroom
 
 						void reload_sync(BredisConnection &conn)
 						{
+							auto &logger = tinychat::logging::logger::instance();
 							this->cache.clear();
 
 							Buffer rx_buff;
@@ -150,15 +155,16 @@ namespace chatroom
 							{
 								auto &user_str = boost::get<bredis::extracts::string_t>(*it);
 								this->cache.insert(user_str.str);
-								std::cout << "user_manage : loading banned user : " << user_str.str << std::endl;
+								logger.info("user_manage") << "loading banned user : " << user_str.str;
 							}
 						}
 
 						void refresh(BredisConnection &conn, boost::asio::yield_context yield)
 						{
+							auto &logger = tinychat::logging::logger::instance();
 							boost::system::error_code ec;
 
-							std::cout << "user_manage : refreshing user list.." << std::endl;
+							logger.info("user_manage") << "refreshing user list..";
 
 							Buffer tx_buff, rx_buff;
 							auto consumed = conn.async_write(
@@ -179,7 +185,7 @@ namespace chatroom
 								if (cache.count(user_str.str) == 0)
 								{
 									this->cache.insert(user_str.str);
-									std::cout << "user_manage : banned user : " << user_str.str << std::endl;
+									logger.info("user_manage") << "banned user : " << user_str.str;
 									if (on_ban) on_ban(user_str.str);
 								}
 							}
@@ -189,7 +195,7 @@ namespace chatroom
 							{
 								if (!new_banned.count(*it))
 								{
-									std::cout << "user_manage : unbanned user : " << *it << std::endl;
+									logger.info("user_manage") << "unbanned user : " << *it;
 									if (on_unban) on_unban(*it);
 									it = cache.erase(it);
 								}

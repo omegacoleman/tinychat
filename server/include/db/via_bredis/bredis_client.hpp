@@ -18,6 +18,8 @@
 #include "subscriptor.hpp"
 #include "user_manage.hpp"
 
+#include "logging.hpp"
+
 namespace chatroom
 {
 	namespace db
@@ -44,7 +46,8 @@ namespace chatroom
 				{
 					if (locked)
 					{
-						std::cerr << "redis_client : main connection already in use" << std::endl;
+						auto &logger = tinychat::logging::logger::instance();
+						logger.warning("bredis_client") << "main connection already in use";
 						return false;
 					}
 					locked = true;
@@ -89,7 +92,8 @@ namespace chatroom
 							}
 							catch (const std::exception &e)
 							{
-								std::cerr << "bredis_client : while user_update : " << e.what() << std::endl;
+								auto &logger = tinychat::logging::logger::instance();
+								logger.error("bredis_client") << "while user_update : " << e.what();
 							}
 							this->lock.free();
 						});
@@ -105,7 +109,8 @@ namespace chatroom
 							}
 							catch (const std::exception &e)
 							{
-								std::cerr << "bredis_client : while user_ban : " << e.what() << std::endl;
+								auto &logger = tinychat::logging::logger::instance();
+								logger.error("bredis_client") << "while user_ban : " << e.what();
 							}
 							this->lock.free();
 						});
@@ -126,7 +131,8 @@ namespace chatroom
 						}
 						catch (const std::exception &e)
 						{
-							std::cerr << "bredis_client : while log_checkin : " << e.what() << std::endl;
+							auto &logger = tinychat::logging::logger::instance();
+							logger.warning("bredis_client") << "while log_checkin : " << e.what();
 						}
 						this->lock.free();
 						ok_callback();

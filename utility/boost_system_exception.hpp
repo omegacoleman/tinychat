@@ -35,7 +35,7 @@ namespace tinychat::utility
 			:message(prefix + " : " + ec.message()) {}
 
 		boost_system_ec_exception(boost::system::error_code &ec, const std::string &prefix, const std::string &file, const int line)
-			:message(prefix + "[" + _get_basename(file) + "#" + std::to_string(line) + "] : " + ec.message()) {}
+			:message(prefix + "@" + _get_basename(file) + "#" + std::to_string(line) + " : " + ec.message()) {}
 
 		virtual const char* what() const noexcept
 		{

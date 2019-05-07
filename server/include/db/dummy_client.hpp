@@ -7,6 +7,8 @@
 
 #include "chatroom.hpp"
 
+#include "logging.hpp"
+
 namespace chatroom
 {
 	namespace db
@@ -16,13 +18,15 @@ namespace chatroom
 			template <typename Generator, typename Handle>
 			void dummy_db_checkin(Generator next, Handle callback)
 			{
-				std::cout << "dummy_client.hpp : Pretending to checkin these to db : " << std::endl;
-				std::cout << "-----------------------------------" << std::endl;
+				auto &logger = tinychat::logging::logger::instance();
+
+				logger.info("dummy_client") << "Pretending to checkin these to db : ";
+				logger.info("dummy_client") << "-----------------------------------";
 				for (auto it = next(); it != nullptr; it = next())
 				{
-					std::cout << it->id << std::endl;
+					logger.info("dummy_client") << it->id;
 				}
-				std::cout << "-----------------------------------" << std::endl;
+				logger.info("dummy_client") << "-----------------------------------";
 				callback();
 			}
 

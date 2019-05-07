@@ -14,6 +14,8 @@
 #include "boost_system_exception.hpp"
 #include "worded_exception.hpp"
 
+#include "logging.hpp"
+
 namespace chatroom
 {
 	namespace db
@@ -40,7 +42,9 @@ namespace chatroom
 						boost::system::error_code ec;
 
 						Buffer tx_buff, rx_buff;
-						std::cout << "log_storage : writing to db : ";
+						auto &logger = tinychat::logging::logger::instance();
+						auto writing_r_collect = logger.info("log_storage");
+						writing_r_collect << " writing to db : ";
 
 						bool all_ok = true;
 
@@ -81,15 +85,14 @@ namespace chatroom
 
 							if (this_ok)
 							{
-								std::cout << "+";
+								writing_r_collect << "+";
 							}
 							else {
-								std::cout << "-";
+								writing_r_collect << "-";
 							}
 
 							all_ok = all_ok && this_ok;
 						}
-						std::cout << std::endl;
 
 						if (all_ok)
 						{

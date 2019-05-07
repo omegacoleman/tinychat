@@ -16,21 +16,20 @@
 #include "chat.pb.h"
 
 #include "chatroom.hpp"
+#include "logging.hpp"
 
 #include "db/via_bredis.hpp"
 #include "db/dummy_client.hpp"
 
 #include "tinyrpc/rpc_websocket_service.hpp"
-#include "boost_system_exception.hpp"
 
 #include "boost/program_options.hpp"
 
 #include "optional_ssl_stream.hpp"
-
 #include "lazy_timeout.hpp"
+#include "boost_system_exception.hpp"
 
 using namespace tinyrpc;
-
 
 using tcp = boost::asio::ip::tcp;
 namespace websocket = boost::beast::websocket;
@@ -57,23 +56,26 @@ public:
 		id(sess_id++), 
 		avail_flag(true)
 	{
+		auto &logger = tinychat::logging::logger::instance();
 		this->uninst_lazy = timeout_scanner->bind([this]()
 		{
 			return this->flush_avail();
 		}, [this]()
 		{
-			std::cerr << "rpc_session " << identity() << " closed due to timeout." <<  std::endl;
+			auto &logger = tinychat::logging::logger::instance();
+			logger.info("session(lazy_timeout)") << "session " << identity() << " closed due to timeout.";
 			return this->close();
 		});
-		std::cout << "rpc_session opened, id #" << id << std::endl;
+		logger.info("session") << "session #" << id << " opened.";
 	}
 
 	~rpc_session()
 	{
+		auto &logger = tinychat::logging::logger::instance();
 		this->uninst_lazy();
 		if(login_name)
 			room->logout(login_name.value());
-		std::cout << "rpc_session destructing #" << id << std::endl;
+		logger.info("session") << "session " << identity() << " destructed.";
 	}
 
 	void run(boost::asio::yield_context yield)
@@ -93,6 +95,7 @@ public:
 
 		while (ws_.is_open())
 		{
+			auto &logger = tinychat::logging::logger::instance();
 			try
 			{
 				auto bytes = ws_.async_read(buf, yield[ec]); _RT_EC("read", ec);
@@ -101,7 +104,7 @@ public:
 				buf.consume(bytes);
 			} catch (const std::exception &e)
 			{
-				std::cerr << "session #" << id << " error : " << e.what() << std::endl;
+				logger.warning("session") << "session #" << id << " : " << e.what();
 				return;
 			}
 		}
@@ -110,49 +113,52 @@ public:
 
 	void login_service(const chat::LoginRequest& req, chat::LoginReply& reply)
 	{
+		auto &logger = tinychat::logging::logger::instance();
 		try
 		{
-			std::cout << req.name() << " wants to login. " << std::endl;
+			logger.info("session.login_service") << req.name() << " wants to login. ";
 			std::string token = room->login(req.name(), req.auth(), *this);
 			reply.set_state(chat::LoginReply::ok);
 			reply.set_token(token);
 			login_name.emplace(req.name());
 		} catch(const chatroom::UserNotFoundException &e) {
 			reply.set_state(chat::LoginReply::not_registered);
-			std::cerr << e.what() << std::endl;
+			logger.info("session") << "login_service : " << e.what();
 		} catch(const chatroom::AuthenticateFailedException &e) {
 			reply.set_state(chat::LoginReply::auth_failed);
-			std::cerr << e.what() << std::endl;
+			logger.info("session") << "login_service : " << e.what();
 		} catch(const chatroom::DuplicateLoginException &e) {
 			reply.set_state(chat::LoginReply::duplicate_login);
-			std::cerr << e.what() << std::endl;
+			logger.info("session") << "login_service : " << e.what();
 		} catch (const chatroom::UserBannedException &e) {
 			reply.set_state(chat::LoginReply::banned);
-			std::cerr << e.what() << std::endl;
+			logger.info("session") << "login_service : " << e.what();
 		}
 		catch(const std::exception &e) {
 			reply.set_state(chat::LoginReply::error);
-			std::cerr << e.what() << std::endl;
+			logger.warning("session") << "login_service : " << e.what();
 		}
 	}
 
 	void verify_service(const chat::VerifyRequest& req, chat::VerifyReply& reply)
 	{
+		auto &logger = tinychat::logging::logger::instance();
 		try
 		{
-			std::cout << req.name() << " checked his status. " << std::endl;
+			logger.info("session.verify_service") << req.name() << " checked his status. ";
 			reply.set_ok(room->verify(req.name(), req.token(), *this));
 		} catch(std::exception e) {
 			reply.set_ok(false);
-			std::cerr << e.what() << std::endl;
+			logger.info("session") << "verify_service : " << e.what();
 		}
 	}
 
 	void chat_send_service(const chat::ChatSendRequest &req, chat::ChatSendReply &reply)
 	{
+		auto &logger = tinychat::logging::logger::instance();
 		if(!room->verify(req.name(), req.token(), *this))
 		{
-			std::cerr << "name " << req.name() << " tried to send something but fails the token valification" << std::endl;
+			logger.info("session.chat_send_service") << "name " << req.name() << " tried to send something but fails the token valification";
 			reply.set_result(chat::ChatSendReply::error);
 			return;
 		}
@@ -162,7 +168,7 @@ public:
 			room->send_and_log_message(m, *chatlog);
 			std::cout << "|| " << req.name() << " : " << req.text() << std::endl;
 		} catch(const std::exception &e) {
-			std::cerr << e.what() << std::endl;
+			logger.warning("session") << "chat_send_service " << this->identity() << " : " << e.what();
 			reply.set_result(chat::ChatSendReply::error);
 			return;
 		}
@@ -170,9 +176,10 @@ public:
 
 	void get_log_service(const chat::GetLogRequest &req, chat::GetLogReply &reply)
 	{
+		auto &logger = tinychat::logging::logger::instance();
 		if (!room->verify(req.name(), req.token(), *this))
 		{
-			std::cerr << "name " << req.name() << " tried to get log but fails the token valification" << std::endl;
+			logger.info("session.get_log_service") << "name " << req.name() << " tried to get log but fails the token valification";
 			return;
 		}
 		auto iter_gen = chatlog->log_revise();
@@ -204,12 +211,14 @@ public:
 	{
 		boost::asio::spawn(ioc, [message, this](boost::asio::yield_context yield)
 		{
+			auto &logger = tinychat::logging::logger::instance();
 			try
 			{
 				this->deliver_proc(message, yield);
 			}
-			catch (const std::exception &e) {
-				std::cerr << "error occured delivering message " << message->id << " to " << this->identity() << " : " << e.what() << std::endl;
+			catch (const std::exception &e)
+			{
+				logger.warning("session") << "deliver(" << message->id << ")->" << this->identity() << " : " << e.what();
 			}
 		});
 	}
@@ -245,6 +254,7 @@ void do_session(tcp::socket &socket,
 	std::optional<boost::asio::ssl::context *> ssl_context, 
 	boost::asio::yield_context yield)
 {
+	auto &logger = tinychat::logging::logger::instance();
 	try
 	{
 		boost::system::error_code ec;
@@ -268,7 +278,7 @@ void do_session(tcp::socket &socket,
 		ses->run(yield);
 	}
 	catch (const std::exception &e) {
-		std::cerr << "do_session failed once, reason : " << e.what() << std::endl;
+		logger.error("do_session") << e.what();
 	}
 }
 
@@ -278,6 +288,7 @@ void do_listen(
 	boost::asio::yield_context yield)
 {
 	boost::system::error_code ec;
+	auto &logger = tinychat::logging::logger::instance();
 
 	tcp::acceptor acceptor(ioc);
 	acceptor.open(endpoint.protocol(), ec); _RT_EC("acceptor.open", ec);
@@ -285,7 +296,7 @@ void do_listen(
 	acceptor.bind(endpoint, ec); _RT_EC("acceptor.bind", ec);
 	acceptor.listen(boost::asio::socket_base::max_listen_connections, ec); _RT_EC("acceptor.listen", ec);
 
-	std::cout << "listening on ws://" << endpoint << "/" << std::endl;
+	logger.info("do_listen") << "listening on ws://" << endpoint << "/";
 	for(;;)
 	{
 		tcp::socket socket(ioc);
@@ -300,6 +311,8 @@ void do_listen(
 
 int main(int argc, char* argv[])
 {
+	auto &logger = tinychat::logging::logger::instance();
+
 	try
 	{
 		boost::program_options::options_description desc{ "Options" };
@@ -408,7 +421,7 @@ int main(int argc, char* argv[])
 		}
 		else
 		{
-			std::cerr << "error : must at least specify one db client, check --help for more" << std::endl;
+			logger.error("main") << "must at least specify one db client, check --help for more";
 			return EXIT_FAILURE;
 		}
 
@@ -417,6 +430,7 @@ int main(int argc, char* argv[])
 
 		boost::asio::spawn(ioc, [&address, &port, &ssl_context](boost::asio::yield_context yield)
 		{
+			auto &logger = tinychat::logging::logger::instance();
 			try
 			{
 				do_listen(tcp::endpoint{ address, port }, 
@@ -425,7 +439,7 @@ int main(int argc, char* argv[])
 			}
 			catch (const std::exception &e)
 			{
-				std::cerr << "do_listen failed : " << e.what() << std::endl;
+				logger.error("do_listen") << e.what();
 			}
 		});
 
@@ -435,7 +449,7 @@ int main(int argc, char* argv[])
 	}
 	catch (const std::exception &e)
 	{
-		std::cerr << "error : " << e.what() << std::endl;
+		logger.error("main") << e.what();
 		return EXIT_FAILURE;
 	}
 }

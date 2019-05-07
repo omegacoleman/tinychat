@@ -20,6 +20,8 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <unordered_set>
 
+#include "logging.hpp"
+
 namespace chatroom
 {
 	#define CHAT_EXCEPTION_STRING(info) (("error in chatroom.hpp : " info))
@@ -124,7 +126,8 @@ namespace chatroom
 
 		void checkin(size_t amount, CheckinHandler callable)
 		{
-			std::cout << "ChatLog : attempt to checkin " << amount << " logs..." << std::endl;
+			auto &logger = tinychat::logging::logger::instance();
+			logger.info("ChatLog") << "attempt to checkin " << amount << " logs...";
 			if (amount > this->not_checked_in_n()) {
 				throw CheckInTooMuchException();
 			}
@@ -146,7 +149,8 @@ namespace chatroom
 
 		void checkin_done(size_t amount)
 		{
-			std::cout << "ChatLog : report done checkin " << amount << " to db." << std::endl;
+			auto &logger = tinychat::logging::logger::instance();
+			logger.info("ChatLog") << "report done checkin " << amount << " to db.";
 			if (amount > this->not_checked_in_n()) {
 				throw CheckInTooMuchException();
 			}
@@ -179,7 +183,8 @@ namespace chatroom
 
 		void release(size_t amount)
 		{
-			std::cout << "ChatLog : released " << amount << std::endl;
+			auto &logger = tinychat::logging::logger::instance();
+			logger.info("ChatLog") << "released " << amount;
 			if(amount > this->checkin_i)
 			{
 				throw ReleaseTooMuchException();
@@ -287,13 +292,15 @@ namespace chatroom
 			session(session),
 			name(name)
 			{
-				std::cout << "LoginInfo : " << name << " log in." << std::endl;
+				auto &logger = tinychat::logging::logger::instance();
+				logger.info("LoginInfo") << name << " log in.";
 				this->token = boost::uuids::to_string(this->token_uuid);
 			}
 
 			~LoginInfo()
 			{
-				std::cout << "LoginInfo : " << name << " log out." << std::endl;
+				auto &logger = tinychat::logging::logger::instance();
+				logger.info("LoginInfo") << name << " log out.";
 			}
 
 			std::string name;
@@ -434,13 +441,12 @@ namespace chatroom
 						it.second.deliver_message(shared_message);
 					} catch (const std::exception &e)
 					{
-						std::cerr << "Room : error occurred while delivering message "
+						auto &logger = tinychat::logging::logger::instance();
+						logger.error("Room") << "error occurred while delivering message "
 						          << message.id
 						          << " to "
 						          << it.first
-						          << " : "
-						          << std::endl;
-						std::cerr << e.what() << std::endl;
+						          << " : " << e.what();
 					}
 				});
 		}

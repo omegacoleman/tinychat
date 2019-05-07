@@ -11,6 +11,8 @@
 #include "boost_system_exception.hpp"
 #include "worded_exception.hpp"
 
+#include "logging.hpp"
+
 namespace chatroom
 {
 	namespace db
@@ -48,9 +50,11 @@ namespace chatroom
 					{
 						boost::system::error_code ec;
 						Buffer rx_buff;
+						auto &logger = tinychat::logging::logger::instance();
+
 						auto command = bredis::single_command_t{ "subscribe", channel };
 						this->redis_connection.write(command);
-						std::cout << "bredis_client.hpp : starting subscription.." << std::endl;
+						logger.info("subscriptor") << "starting subscription..";
 
 						auto initial_result = this->redis_connection.read(rx_buff);
 						if (!boost::apply_visitor(InitialResultChecker(command), initial_result.result))
@@ -58,7 +62,8 @@ namespace chatroom
 							throw tinychat::utility::worded_exception("subscription failed : wrong answer from server");
 						}
 						rx_buff.consume(initial_result.consumed);
-						std::cout << "bredis_client.hpp : subscription started" << std::endl;
+
+						logger.info("subscriptor") << "subscription started";
 					}
 
 					void run_loop(const std::string &channel, boost::asio::yield_context yield) noexcept
@@ -69,10 +74,12 @@ namespace chatroom
 
 						while (true)
 						{
+							auto &logger = tinychat::logging::logger::instance();
 							try
 							{
 								ParseResult parse_result = this->redis_connection.async_read(rx_buff, yield[ec]); _RT_EC("read(subscribe)", ec);
-									std::cout << "bredis_client.hpp : subscription got something" << std::endl;
+
+								logger.info("subscriptor") << "subscription socket got something";
 
 								auto extract = boost::apply_visitor(Extractor(), parse_result.result);
 								rx_buff.consume(parse_result.consumed);
@@ -83,12 +90,12 @@ namespace chatroom
 								}
 								catch (const std::exception &e)
 								{
-									std::cerr << "bredis_client.hpp : subscription mission failed -- " << e.what() << std::endl;
+									logger.error("subscriptor") << "subscription mission failed -- " << e.what();
 								}
 							}
 							catch (const std::exception &e)
 							{
-								std::cerr << "bredis_client.hpp : subscription error -- " << e.what() << std::endl;
+								logger.error("subscriptor") << "subscription error -- " << e.what();
 							}
 						}
 					}
