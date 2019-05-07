@@ -77,12 +77,15 @@ namespace tinychat
 			}
 
 		private:
-			logger() {}
+			logger()
+			{
+				impl::color_code::autodetect_scheme::init();
+			}
 
 			impl::base_logger<
 				std::ostream, 
 				char, 
-				impl::color_code::default_scheme
+				impl::color_code::autodetect_scheme
 			> detail{std::cerr, '\n'};
 		};
 	}

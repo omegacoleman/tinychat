@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdlib>
+
 namespace tinychat
 {
 	namespace logging
@@ -40,7 +42,7 @@ namespace tinychat
 				{
 				public:
 					using color_code_t = const std::string &;
-					
+
 					inline const static std::string reset = _reset;
 
 					inline const static std::string error_tag = _red;
@@ -50,6 +52,54 @@ namespace tinychat
 					inline const static std::string error = _red;
 					inline const static std::string warning = _yellow;
 					inline const static std::string info = _white;
+				};
+
+				class autodetect_scheme
+				{
+				public:
+					static void init()
+					{
+						std::string term_env{""};
+						const char *term_env_cstr = std::getenv("TERM");
+						if (term_env_cstr != NULL)
+						{
+							term_env = term_env_cstr;
+						}
+						if ((term_env == "xterm") || (term_env == "cygwin"))
+						{
+							reset = default_scheme::reset;
+
+							error_tag = default_scheme::error_tag;
+							warning_tag = default_scheme::warning_tag;
+							info_tag = default_scheme::info_tag;
+
+							error = default_scheme::error;
+							warning = default_scheme::warning;
+							info = default_scheme::info;
+						}
+						else {
+							reset = disabled::reset;
+
+							error_tag = disabled::error_tag;
+							warning_tag = disabled::warning_tag;
+							info_tag = disabled::info_tag;
+
+							error = disabled::error;
+							warning = disabled::warning;
+							info = disabled::info;
+						}
+					}
+					using color_code_t = const std::string &;
+
+					inline static std::string reset;
+
+					inline static std::string error_tag;
+					inline static std::string warning_tag;
+					inline static std::string info_tag;
+
+					inline static std::string error;
+					inline static std::string warning;
+					inline static std::string info;
 				};
 			}
 
