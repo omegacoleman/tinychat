@@ -31,6 +31,19 @@ namespace websocket = boost::beast::websocket;
 using ws = websocket::stream<
 	tinychat::utility::optional_ssl_stream<tcp::socket> >;
 
+void show_chat_message(const chat::ChatMessage& chat_message)
+{
+	if (chat_message.mtype() == chat::message_simple)
+	{
+		auto simple_message = chat_message.simple_message();
+		std::cout << "<" << simple_message.header().sender() << ">:"
+			<< simple_message.text() << std::endl;
+	}
+	else {
+		std::cout << "(Got a message but the format is currently unsupported)" << std::endl;
+	}
+}
+
 class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
 	public:
@@ -57,8 +70,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 		void notify_chat_message_service(const chat::NotifyChatMessageRequest &req,
 				chat::NotifyChatMessageReply &reply)
 		{
-			std::cout << "|| " << req.chat_message().sender() << " : "
-				<< req.chat_message().text() << std::endl;
+			show_chat_message(req.chat_message());
 		}
 		
 		void start_timed_heartbeat(
@@ -74,7 +86,6 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 				{
 					boost::asio::steady_timer timer(ioc);
 					chat::VerifyRequest v_req;
-					v_req.set_name(name);
 					v_req.set_token(token);
 					boost::system::error_code ec;
 					while (true)
@@ -83,10 +94,6 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 						timer.async_wait(yield[ec]); _RT_EC("wait(hb)", ec);
 						chat::VerifyReply v_reply;
 						rpc_stub_.async_call(v_req, v_reply, yield[ec]); _RT_EC("rpc_call(hb)", ec);
-						if (!v_reply.ok())
-						{
-							throw tinychat::utility::worded_exception("server replied not ok");
-						}
 					}
 				}
 				catch (const std::exception &e) {
@@ -123,21 +130,21 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 			rpc_stub_.async_call(msg, reply, yield[ec]); _RT_EC("rpc_call(login)", ec);
 
-			if ( reply.state() != chat::LoginReply::ok )
+			if ( reply.result() != chat::login_result_ok )
 			{
-				switch ( reply.state())
+				switch ( reply.result())
 				{
-					case (chat::LoginReply::not_registered):
+					case (chat::login_result_not_registered):
 						std::cerr << "name not registered." << std::endl;
 						break;
-					case (chat::LoginReply::auth_failed):
+					case (chat::login_result_auth_failed):
 						std::cerr << "authentication failed." << std::endl;
 						break;
-					case (chat::LoginReply::duplicate_login):
+					case (chat::login_result_duplicate_login):
 						std::cerr << "this account is already online. contact the admin."
 							<< std::endl;
 						break;
-					case (chat::LoginReply::banned):
+					case (chat::login_result_banned):
 						std::cerr << "you got banned."
 						          << std::endl;
 					default:
@@ -157,7 +164,6 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 
 			chat::GetLogRequest gl_req;
-			gl_req.set_name(name);
 			gl_req.set_token(token);
 			chat::GetLogReply gl_reply;
 			rpc_stub_.async_call(gl_req, gl_reply, yield[ec]); _RT_EC("rpc_call(getlog)", ec);
@@ -167,8 +173,8 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 				std::cout << "------------------" << std::endl;
 				for (int i = 0; i < gl_reply.chat_messages_size(); i++)
 				{
-					auto m = gl_reply.chat_messages(i);
-					std::cout << "|| " << m.sender() << " : " << m.text() << std::endl;
+					auto it = gl_reply.chat_messages(i);
+					show_chat_message(it);
 				}
 				std::cout << "------------------" << std::endl;
 			}
@@ -181,13 +187,12 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 			while ( true )
 			{
 				auto context = tinychat::utility::async_stdin_getline(ioc, yield[ec]); _RT_EC("getline", ec);
-				chat::ChatSendRequest v_req;
-				chat::ChatSendReply v_reply;
-				v_req.set_name(name);
+				chat::ChatSimpleSendRequest v_req;
+				chat::ChatSimpleSendReply v_reply;
 				v_req.set_token(token);
 				v_req.set_text(context);
 				rpc_stub_.async_call(v_req, v_reply, yield[ec]); _RT_EC("rpc_call(chatsend)", ec);
-				if ( v_reply.result() == chat::ChatSendReply::ok )
+				if ( v_reply.result() == chat::send_result_ok )
 				{
 					std::cout << "message sent" << std::endl;
 				}

@@ -46,6 +46,19 @@ static std::unique_ptr<chatroom::ChatLog> chatlog;
 
 static std::unique_ptr<tinychat::utility::lazy_timeout> timeout_scanner;
 
+void serialize_message(chat::ChatMessage &to, const chatroom::Message &from)
+{
+	to.set_mtype(chat::message_simple);
+	auto header = new chat::ChatMessageHeader();
+	header->set_id(from.id);
+	header->set_sender(from.sender);
+	header->set_unix_time(from.unix_time);
+	auto simple_message = new chat::ChatSimpleMessage();
+	simple_message->set_allocated_header(header);
+	simple_message->set_text(from.text);
+	to.set_allocated_simple_message(simple_message);
+}
+
 class rpc_session : public std::enable_shared_from_this<rpc_session>
 {
 public:
@@ -87,7 +100,7 @@ public:
 		});
 		REG_SVC(chat::LoginRequest, chat::LoginReply, login_service);
 		REG_SVC(chat::VerifyRequest, chat::VerifyReply, verify_service);
-		REG_SVC(chat::ChatSendRequest, chat::ChatSendReply, chat_send_service);
+		REG_SVC(chat::ChatSimpleSendRequest, chat::ChatSimpleSendReply, chat_simple_send_service);
 		REG_SVC(chat::GetLogRequest, chat::GetLogReply, get_log_service);
 
 		boost::beast::multi_buffer buf;
@@ -118,24 +131,28 @@ public:
 		{
 			logger.info("session.login_service") << req.name() << " wants to login. ";
 			std::string token = room->login(req.name(), req.auth(), *this);
-			reply.set_state(chat::LoginReply::ok);
+			reply.set_result(chat::login_result_ok);
 			reply.set_token(token);
 			login_name.emplace(req.name());
-		} catch(const chatroom::UserNotFoundException &e) {
-			reply.set_state(chat::LoginReply::not_registered);
+		}
+		catch(const chatroom::UserNotFoundException &e) {
+			reply.set_result(chat::login_result_not_registered);
 			logger.info("session") << "login_service : " << e.what();
-		} catch(const chatroom::AuthenticateFailedException &e) {
-			reply.set_state(chat::LoginReply::auth_failed);
+		}
+		catch(const chatroom::AuthenticateFailedException &e) {
+			reply.set_result(chat::login_result_auth_failed);
 			logger.info("session") << "login_service : " << e.what();
-		} catch(const chatroom::DuplicateLoginException &e) {
-			reply.set_state(chat::LoginReply::duplicate_login);
+		}
+		catch(const chatroom::DuplicateLoginException &e) {
+			reply.set_result(chat::login_result_duplicate_login);
 			logger.info("session") << "login_service : " << e.what();
-		} catch (const chatroom::UserBannedException &e) {
-			reply.set_state(chat::LoginReply::banned);
+		}
+		catch (const chatroom::UserBannedException &e) {
+			reply.set_result(chat::login_result_banned);
 			logger.info("session") << "login_service : " << e.what();
 		}
 		catch(const std::exception &e) {
-			reply.set_state(chat::LoginReply::error);
+			reply.set_result(chat::login_result_error);
 			logger.warning("session") << "login_service : " << e.what();
 		}
 	}
@@ -145,31 +162,44 @@ public:
 		auto &logger = tinychat::logging::logger::instance();
 		try
 		{
-			logger.info("session.verify_service") << req.name() << " checked his status. ";
-			reply.set_ok(room->verify(req.name(), req.token(), *this));
+			logger.info("session.verify_service") << identity() << " checked his status. ";
+			if (this->login_name.has_value())
+			{
+				if (room->verify(*(this->login_name), req.token(), *this))
+				{
+					return;
+				}
+			}
 		} catch(std::exception e) {
-			reply.set_ok(false);
 			logger.info("session") << "verify_service : " << e.what();
+			throw e;
 		}
 	}
 
-	void chat_send_service(const chat::ChatSendRequest &req, chat::ChatSendReply &reply)
+	void chat_simple_send_service(const chat::ChatSimpleSendRequest &req, chat::ChatSimpleSendReply &reply)
 	{
 		auto &logger = tinychat::logging::logger::instance();
-		if(!room->verify(req.name(), req.token(), *this))
-		{
-			logger.info("session.chat_send_service") << "name " << req.name() << " tried to send something but fails the token valification";
-			reply.set_result(chat::ChatSendReply::error);
-			return;
-		}
 		try
 		{
-			chatroom::Message m(room->room_id, req.name(), req.text());
+			if (!this->login_name.has_value())
+			{
+				logger.info("session.chat_send_service") << identity() << " tried to send without login";
+				reply.set_result(chat::send_result_error);
+				return;
+			}
+			if (!room->verify(*(this->login_name), req.token(), *this))
+			{
+				logger.info("session.chat_send_service") << identity() << " tried to send something but fails the token valification";
+				reply.set_result(chat::send_result_error);
+				return;
+			}
+
+			chatroom::Message m(room->room_id, *(this->login_name), req.text());
 			room->send_and_log_message(m, *chatlog);
-			std::cout << "|| " << req.name() << " : " << req.text() << std::endl;
+			std::cout << "<" << *(this->login_name) << ">:" << req.text() << std::endl;
 		} catch(const std::exception &e) {
 			logger.warning("session") << "chat_send_service " << this->identity() << " : " << e.what();
-			reply.set_result(chat::ChatSendReply::error);
+			reply.set_result(chat::send_result_error);
 			return;
 		}
 	}
@@ -177,19 +207,28 @@ public:
 	void get_log_service(const chat::GetLogRequest &req, chat::GetLogReply &reply)
 	{
 		auto &logger = tinychat::logging::logger::instance();
-		if (!room->verify(req.name(), req.token(), *this))
+		try
 		{
-			logger.info("session.get_log_service") << "name " << req.name() << " tried to get log but fails the token valification";
-			return;
+			if (!this->login_name.has_value())
+			{
+				logger.info("session.get_log_service") << identity() << " tried to get log without login";
+				return;
+			}
+			if (!room->verify(*(this->login_name), req.token(), *this))
+			{
+				logger.info("session.get_log_service") << identity() << " tried to get log but fails the token valification";
+				return;
+			}
+			auto iter_gen = chatlog->log_revise();
+			for (auto it = iter_gen(); it != nullptr; it = iter_gen())
+			{
+				chat::ChatMessage *m = reply.add_chat_messages();
+				serialize_message(*m, *it);
+			}
 		}
-		auto iter_gen = chatlog->log_revise();
-		for (auto it = iter_gen(); it != nullptr; it = iter_gen())
-		{
-			chat::ChatMessage *m = reply.add_chat_messages();
-			m->set_id(it->id);
-			m->set_sender(it->sender);
-			m->set_text(it->text);
-			m->set_unix_time(it->unix_time);
+		catch (const std::exception &e) {
+			logger.warning("session") << "get_log_service " << this->identity() << " : " << e.what();
+			return;
 		}
 	}
 
@@ -198,10 +237,7 @@ public:
 		boost::system::error_code ec;
 		chat::NotifyChatMessageRequest req;
 		chat::ChatMessage *chat_message = new chat::ChatMessage();
-		chat_message->set_id(message->id);
-		chat_message->set_sender(message->sender);
-		chat_message->set_unix_time(message->unix_time);
-		chat_message->set_text(message->text);
+		serialize_message(*chat_message, *message);
 		req.set_allocated_chat_message(chat_message);
 		chat::NotifyChatMessageReply reply;
 		this->rpc_stub_.async_call(req, reply, yield[ec]); _RT_EC("deliver_proc(" + this->identity() + ")", ec);

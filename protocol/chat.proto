@@ -7,39 +7,92 @@ message LoginRequest {
 	string auth = 2;
 }
 
+enum login_result_type {
+	login_result_ok = 0;
+	login_result_auth_failed = 1;
+	login_result_not_registered = 2;
+	login_result_duplicate_login = 3;
+	login_result_error = 4;
+	login_result_banned = 5;
+}
+
 message LoginReply {
-	enum statetype {
-		ok = 0;
-		auth_failed = 1;
-		not_registered = 2;
-		duplicate_login = 3;
-		error = 4;
-		banned = 5;
-	}
-	statetype state = 1;
+	login_result_type result = 1;
 	string token = 2;
 }
 
-message ChatSendRequest {
-	string name = 1;
-	string token = 2;
-	string text = 3;
+message ChatSimpleSendRequest {
+	string token = 1;
+	string text = 2;
 }
 
-message ChatSendReply {
-	enum resulttype {
-		ok = 0;
-		bad_words = 1;
-		error = 2;
-	}
-	resulttype result = 1;
+enum send_result_type {
+	send_result_ok = 0;
+	send_result_bad_words = 1;
+	send_result_error = 2;
+	send_result_meta_not_supported = 3;
+	send_result_auth_failure = 4;
+	send_result_operation_not_permitted = 5;
+}
+
+message ChatSimpleSendReply {
+	send_result_type result = 1;
+}
+
+message ChatRichSendRequest {
+	string token = 1;
+	string meta = 2;
+	string body = 3;
+}
+
+message ChatRichSendReply {
+	send_result_type result = 1;
+}
+
+message MultiblockBlockRequest {
+	string major_hash = 1;
+	string block_hash = 2;
+}
+
+message MultiblockBlockReply {
+	bytes block_data = 1;
+}
+
+message MultiblockBlockReversedRequest {
+	string major_hash = 1;
+	string block_hash = 2;
+}
+
+message MultiblockBlockReversedReply {
+	bytes block_data = 1;
+}
+
+message ChatMessageHeader {
+	string id = 1;
+	string sender = 2;
+	uint64 unix_time = 3;
+}
+
+message ChatSimpleMessage {
+	ChatMessageHeader header = 1;
+	string text = 2;
+}
+
+message ChatRichMessage {
+	ChatMessageHeader header = 1;
+	string meta = 2;
+	string body = 3;
+}
+
+enum message_type {
+	message_simple = 0;
+	message_rich = 1;
 }
 
 message ChatMessage {
-	string id = 1;
-	string sender = 2;
-	string text = 3;
-	uint64 unix_time = 4;
+	message_type mtype = 1;
+	ChatSimpleMessage simple_message = 2;
+	ChatRichMessage rich_message = 3;
 }
 
 message NotifyChatMessageRequest {
@@ -50,8 +103,7 @@ message NotifyChatMessageReply {
 }
 
 message GetLogRequest {
-	string name = 1;
-	string token = 2;
+	string token = 1;
 }
 
 message GetLogReply {
@@ -59,12 +111,10 @@ message GetLogReply {
 }
 
 message VerifyRequest {
-	string name = 1;
-	string token = 2;
+	string token = 1;
 }
 
 message VerifyReply {
-	bool ok = 1;
 }
 
 
