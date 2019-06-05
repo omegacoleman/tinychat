@@ -35,6 +35,7 @@ using ws = websocket::stream<
 
 void show_chat_message(const chat::ChatMessage& chat_message)
 {
+	auto &logger = tinychat::logging::logger::instance();
 	if (chat_message.mtype() == chat::message_simple)
 	{
 		auto simple_message = chat_message.simple_message();
@@ -42,7 +43,7 @@ void show_chat_message(const chat::ChatMessage& chat_message)
 			<< simple_message.text() << std::endl;
 	}
 	else {
-		std::cout << "(Got a message but the format is currently unsupported)" << std::endl;
+		logger.warning("show_chat_message") << "(Got a message but the format is currently unsupported)";
 	}
 }
 
@@ -84,6 +85,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 		{
 			spawn(ioc, [duration, name, token, &ioc, this](boost::asio::yield_context yield)
 			{
+				auto& logger = tinychat::logging::logger::instance();
 				try
 				{
 					boost::asio::steady_timer timer(ioc);
@@ -99,7 +101,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 					}
 				}
 				catch (const std::exception &e) {
-					std::cerr << "heartbeat : " << e.what() << std::endl;
+					logger.error("heartbeat") << "error : " << e.what();
 					_exit(EXIT_FAILURE);
 				}
 			});
@@ -107,6 +109,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 		void chat_proc(boost::asio::yield_context yield, boost::asio::io_context &ioc)
 		{
+			auto &logger = tinychat::logging::logger::instance();
 			rpc_stub_.rpc_bind<chat::NotifyChatMessageRequest, chat::NotifyChatMessageReply>(
 				[this] (const chat::NotifyChatMessageRequest &req, chat::NotifyChatMessageReply &reply)
 			{
@@ -118,15 +121,8 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 
 			chat::LoginRequest msg;
 
-			std::cout << "input your name: ";
-			std::string name;
-			std::getline(std::cin, name);
-			msg.set_name(name);
-
-			std::cout << "input your auth key: ";
-			std::string auth;
-			std::getline(std::cin, auth);
-			msg.set_auth(auth);
+			msg.set_name(arg_vm["user"].as<std::string>());
+			msg.set_auth(arg_vm["auth"].as<std::string>());
 
 			chat::LoginReply reply;
 
@@ -137,32 +133,30 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 				switch ( reply.result())
 				{
 					case (chat::login_result_not_registered):
-						std::cerr << "name not registered." << std::endl;
+						logger.error("login") << "name not registered.";
 						break;
 					case (chat::login_result_auth_failed):
-						std::cerr << "authentication failed." << std::endl;
+						logger.error("login") << "authentication failed.";
 						break;
 					case (chat::login_result_duplicate_login):
-						std::cerr << "this account is already online. contact the admin."
-							<< std::endl;
+						logger.error("login") << "this account is already online. contact the admin.";
 						break;
 					case (chat::login_result_banned):
-						std::cerr << "you got banned."
-						          << std::endl;
+						logger.error("login") << "you got banned.";
 					default:
-						std::cerr << "error occured during login. quit." << std::endl;
+						logger.error("login") << "error occured during login. quit.";
 						break;
 				}
 				ws_.close({}, ec);
 				return;
 			}
 
-			std::cout << "login succeed." << std::endl;
+			logger.info("login") << "login succeed.";
 			std::string token = reply.token();
 			long long hb_interval = arg_vm["heartbeat"].as<long long>();
 			if (hb_interval > 0)
-				start_timed_heartbeat(ioc,name,token,std::chrono::seconds(hb_interval));
-			std::cout << "your token : " << token << std::endl;
+				start_timed_heartbeat(ioc, arg_vm["user"].as<std::string>(), token, std::chrono::seconds(hb_interval));
+			logger.info("login") << "your token : " << token;
 
 
 			chat::GetLogRequest gl_req;
@@ -171,20 +165,15 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 			rpc_stub_.async_call(gl_req, gl_reply, yield[ec]); _RT_EC("rpc_call(getlog)", ec);
 			if (gl_reply.chat_messages_size())
 			{
-				std::cout << "they said these before you join : " << std::endl;
-				std::cout << "------------------" << std::endl;
+				// std::cout << "they said these before you join : " << std::endl;
+				std::cout << "LOGREVISE------------------" << std::endl;
 				for (int i = 0; i < gl_reply.chat_messages_size(); i++)
 				{
 					auto it = gl_reply.chat_messages(i);
 					show_chat_message(it);
 				}
-				std::cout << "------------------" << std::endl;
+				std::cout << "LOGREVISE------------------" << std::endl;
 			}
-
-
-
-			std::cout << "type to speak" << std::endl;
-			std::cout << "------------------" << std::endl;
 
 			while ( true )
 			{
@@ -196,11 +185,11 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 				rpc_stub_.async_call(v_req, v_reply, yield[ec]); _RT_EC("rpc_call(chatsend)", ec);
 				if ( v_reply.result() == chat::send_result_ok )
 				{
-					std::cout << "message sent" << std::endl;
+					logger.info("session") << "message sent";
 				}
 				else
 				{
-					std::cout << "message failed to send" << std::endl;
+					logger.info("warning") << "message failed to send";
 				}
 			}
 		}
@@ -245,12 +234,13 @@ void do_session(
 	auto ses = std::make_shared<rpc_session>(std::move(s.value()));
 	boost::asio::spawn(ioc, [&ses] (boost::asio::yield_context yield)
 	{
+		auto &logger = tinychat::logging::logger::instance();
 		try
 		{
 			ses->run(yield);
 		}
 		catch (const std::exception &e) {
-			std::cerr << "error in session : " << e.what() << std::endl;
+			logger.error("do_session") << "error in session : " << e.what();
 			_exit(EXIT_FAILURE);
 		}
 	});
@@ -259,6 +249,7 @@ void do_session(
 
 int main(int argc, char **argv)
 {
+	auto &logger = tinychat::logging::logger::instance();
 	try
 	{
 		boost::program_options::options_description desc("Options");
@@ -266,6 +257,8 @@ int main(int argc, char **argv)
 			("help", "Print help message")
 			("server", boost::program_options::value<std::string>(), "Server address")
 			("port", boost::program_options::value<std::string>()->default_value("8000"), "Server port")
+			("user", boost::program_options::value<std::string>(), "user field for login")
+			("auth", boost::program_options::value<std::string>(), "auth field for login, may require hashing")
 			("heartbeat", boost::program_options::value<long long>()->default_value(30),
 				"interval to send heartbeat packet, 0 means no heartbeat")
 			("use-ssl", "use SSL encryption, thus use websocket over https")
@@ -283,7 +276,19 @@ int main(int argc, char **argv)
 
 		if (!arg_vm.count("server"))
 		{
-			std::cerr << "error : server not specified, use --help for usage" << std::endl;
+			logger.error("main") << "error : --server not specified, use --help for usage";
+			return EXIT_FAILURE;
+		}
+
+		if (!arg_vm.count("user"))
+		{
+			logger.error("main") << "error : --user not specified, use --help for usage";
+			return EXIT_FAILURE;
+		}
+
+		if (!arg_vm.count("auth"))
+		{
+			logger.error("main") << "error : --auth not specified, use --help for usage";
 			return EXIT_FAILURE;
 		}
 
@@ -318,7 +323,8 @@ int main(int argc, char **argv)
 				);
 			}
 			catch (const std::exception &e) {
-				std::cerr << "error creating session : " << e.what() << std::endl;
+				auto &logger = tinychat::logging::logger::instance();
+				logger.error("do_session") << "error creating session : " << e.what();
 				_exit(EXIT_FAILURE);
 			}
 		});
@@ -328,7 +334,7 @@ int main(int argc, char **argv)
 		return EXIT_SUCCESS;
 	}
 	catch (const std::exception &e) {
-		std::cerr << "error in main process : " << e.what() << std::endl;
+		logger.error("do_error") << "error in main process : " << e.what();
 		return EXIT_FAILURE;
 	}
 }
