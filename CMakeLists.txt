@@ -2,7 +2,7 @@
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 project(tinyrpc)
 
-find_package(Boost REQUIRED COMPONENTS coroutine context thread program_options)
+find_package(Boost REQUIRED COMPONENTS coroutine context thread program_options filesystem)
 find_package(Protobuf REQUIRED)
 find_package(Threads)
 find_package(OpenSSL REQUIRED)
@@ -98,3 +98,6 @@ include_directories(tinyrpc/include)
 
 add_subdirectory(client)
 add_subdirectory(server)
+
+enable_testing()
+add_subdirectory(test)
