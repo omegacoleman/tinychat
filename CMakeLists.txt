@@ -22,7 +22,7 @@ else()
 	message(FATAL_ERROR "unsupported platform")
 endif()
 
-include_directories(${PROJECT_SOURCE_DIR}/utility)
+include_directories(${PROJECT_SOURCE_DIR}/include)
 include_directories(${OPENSSL_INCLUDE_DIR})
 
 include_directories(${Boost_INCLUDE_DIRS})

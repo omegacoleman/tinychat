@@ -7,7 +7,7 @@
 
 #include "chatroom.hpp"
 
-#include "logging.hpp"
+#include "utility/logging.hpp"
 
 namespace chatroom
 {

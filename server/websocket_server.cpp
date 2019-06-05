@@ -16,7 +16,6 @@
 #include "chat.pb.h"
 
 #include "chatroom.hpp"
-#include "logging.hpp"
 
 #include "db/via_bredis.hpp"
 #include "db/dummy_client.hpp"
@@ -25,9 +24,9 @@
 
 #include "boost/program_options.hpp"
 
-#include "optional_ssl_stream.hpp"
-#include "lazy_timeout.hpp"
-#include "boost_system_exception.hpp"
+#include "utility/optional_ssl_stream.hpp"
+#include "utility/lazy_timeout.hpp"
+#include "utility/boost_system_exception.hpp"
 
 using namespace tinyrpc;
 

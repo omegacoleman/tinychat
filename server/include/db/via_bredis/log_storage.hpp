@@ -11,8 +11,8 @@
 
 #include "chatroom.hpp"
 
-#include "boost_system_exception.hpp"
-#include "worded_exception.hpp"
+#include "utility/boost_system_exception.hpp"
+#include "utility/worded_exception.hpp"
 
 #include "impl/log_storage.ipp"
 

@@ -20,7 +20,7 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <unordered_set>
 
-#include "logging.hpp"
+#include "utility/logging.hpp"
 
 namespace chatroom
 {

@@ -15,11 +15,13 @@
 
 #include "tinyrpc/rpc_websocket_service.hpp"
 
-#include "async_stdio.hpp"
-#include "boost_system_exception.hpp"
-#include "worded_exception.hpp"
+#include "utility/async_stdio.hpp"
+#include "utility/boost_system_exception.hpp"
+#include "utility/worded_exception.hpp"
 
-#include "optional_ssl_stream.hpp"
+#include "utility/optional_ssl_stream.hpp"
+
+#include "utility/logging.hpp"
 
 boost::program_options::variables_map arg_vm;
 

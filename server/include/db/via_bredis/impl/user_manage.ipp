@@ -10,10 +10,10 @@
 
 #include "bredis.hpp"
 
-#include "boost_system_exception.hpp"
-#include "worded_exception.hpp"
+#include "utility/boost_system_exception.hpp"
+#include "utility/worded_exception.hpp"
 
-#include "logging.hpp"
+#include "utility/logging.hpp"
 
 namespace chatroom
 {
