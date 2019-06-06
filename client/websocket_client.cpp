@@ -174,6 +174,7 @@ class rpc_session : public std::enable_shared_from_this<rpc_session>
 				}
 				std::cout << "LOGREVISE------------------" << std::endl;
 			}
+			logger.info("session") << "prompting started.";
 
 			while ( true )
 			{
